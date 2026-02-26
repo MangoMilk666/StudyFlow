@@ -20,27 +20,64 @@ const initialAttendees = [
    MAIN APP COMPONENT
 ========================================= */
 class App extends React.Component {
+  constructor() {
+    super();
+    this.state = {
+      attendees: initialAttendees,
+      activeView: 'display',
+      nextId: 3,
+    };
+    this.setView = this.setView.bind(this);
+    this.addAttendee = this.addAttendee.bind(this);
+    this.deleteAttendee = this.deleteAttendee.bind(this);
+  }
+
+  setView(view) {
+    this.setState({ activeView: view });
+  }
+
+  addAttendee(attendee) {
+    this.setState(prevState => ({
+      attendees: [...prevState.attendees, { ...attendee, id: prevState.nextId }],
+      nextId: prevState.nextId + 1,
+    }));
+  }
+
+  deleteAttendee(id) {
+    this.setState(prevState => ({
+      attendees: prevState.attendees.filter(a => a.id !== id),
+    }));
+  }
+
   render() {
+    const { attendees, activeView } = this.state;
     return (
       <div>
         <h1>TicketMaster Reservation System</h1>
+        <NavBar activeView={activeView} setView={this.setView} />
+        <AvailableTickets attendees={attendees} />
+        {activeView === 'display' && <DisplayAttendees attendees={attendees} onDelete={this.deleteAttendee} />}
+        {activeView === 'add' && <AddAttendee attendees={attendees} onAdd={this.addAttendee} />}
+        {activeView === 'delete' && <DeleteAttendee attendees={attendees} onDelete={this.deleteAttendee} />}
+        {activeView === 'seatmap' && <SeatMap attendees={attendees} />}
+      </div>
+    );
+  }
+}
 
-        {/* TODO (Q2): Add Navigation Bar Component */}
-        <NavBar />
-
-        {/* TODO (Q2): Show ONE component at a time based on navigation */}
-
-        {/* TODO (Q3): Display Attendee Table */}
-        {/* <DisplayAttendees /> */}
-
-        {/* TODO (Q4): Add Attendee Form */}
-        {/* <AddAttendee /> */}
-
-        {/* TODO (Q5): Delete Attendee Form */}
-        {/* <DeleteAttendee /> */}
-
-        {/* TODO (Q6): Seat Map Visualization */}
-        {/* <SeatMap /> */}
+/* =========================================
+   AVAILABLE TICKETS COMPONENT (Q2)
+========================================= */
+class AvailableTickets extends React.Component {
+  render() {
+    const { attendees } = this.props;
+    const goldUsed = attendees.filter(a => a.ticketCategory === 'Gold').length;
+    const silverUsed = attendees.filter(a => a.ticketCategory === 'Silver').length;
+    return (
+      <div style={{ padding: '8px', background: '#e8f5e9', marginBottom: '16px', textAlign: 'center' }}>
+        <b>Tickets Available: {TOTAL_SEATS - attendees.length} / {TOTAL_SEATS}</b>
+        {' | Gold: '}{GOLD_SEATS.length - goldUsed}
+        {' | Silver: '}{SILVER_SEATS.length - silverUsed}
       </div>
     );
   }
@@ -51,14 +88,32 @@ class App extends React.Component {
 ========================================= */
 class NavBar extends React.Component {
   render() {
+    const { activeView, setView } = this.props;
+    const views = [
+      { key: 'display', label: 'Display Attendees' },
+      { key: 'add', label: 'Add Attendee' },
+      { key: 'delete', label: 'Delete Attendee' },
+      { key: 'seatmap', label: 'Seat Map' },
+    ];
     return (
-      <div>
-        <h2>Navigation</h2>
-
-        {/* TODO: Add buttons for switching views */}
-        {/* Example:
-            Home | Display Attendees | Add Attendee | Delete Attendee | Seat Map
-        */}
+      <div style={{ marginBottom: '16px' }}>
+        {views.map(v => (
+          <button
+            key={v.key}
+            onClick={() => setView(v.key)}
+            style={{
+              marginRight: '8px',
+              padding: '8px 16px',
+              fontWeight: activeView === v.key ? 'bold' : 'normal',
+              background: activeView === v.key ? '#1976d2' : '#e0e0e0',
+              color: activeView === v.key ? '#fff' : '#333',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            {v.label}
+          </button>
+        ))}
       </div>
     );
   }
