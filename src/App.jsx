@@ -66,57 +66,53 @@ class App extends React.Component {
 }
 
 /* =========================================
-   AVAILABLE TICKETS COMPONENT (Q2)
+   AVAILABLE TICKETS COMPONENT (Q2) - Function Component
 ========================================= */
-class AvailableTickets extends React.Component {
-  render() {
-    const { attendees } = this.props;
-    const goldUsed = attendees.filter(a => a.ticketCategory === 'Gold').length;
-    const silverUsed = attendees.filter(a => a.ticketCategory === 'Silver').length;
-    return (
-      <div style={{ padding: '8px', background: '#e8f5e9', marginBottom: '16px', textAlign: 'center' }}>
-        <b>Tickets Available: {TOTAL_SEATS - attendees.length} / {TOTAL_SEATS}</b>
-        {' | Gold: '}{GOLD_SEATS.length - goldUsed}
-        {' | Silver: '}{SILVER_SEATS.length - silverUsed}
-      </div>
-    );
-  }
+function AvailableTickets(props) {
+  const { attendees } = props;
+  const goldUsed = attendees.filter(a => a.ticketCategory === 'Gold').length;
+  const silverUsed = attendees.filter(a => a.ticketCategory === 'Silver').length;
+  return (
+    <div style={{ padding: '8px', background: '#e8f5e9', marginBottom: '16px', textAlign: 'center' }}>
+      <b>Tickets Available: {TOTAL_SEATS - attendees.length} / {TOTAL_SEATS}</b>
+      {' | Gold: '}{GOLD_SEATS.length - goldUsed}
+      {' | Silver: '}{SILVER_SEATS.length - silverUsed}
+    </div>
+  );
 }
 
 /* =========================================
-   NAVIGATION BAR COMPONENT (Q2)
+   NAVIGATION BAR COMPONENT (Q2) - Function Component
 ========================================= */
-class NavBar extends React.Component {
-  render() {
-    const { activeView, setView } = this.props;
-    const views = [
-      { key: 'display', label: 'Display Attendees' },
-      { key: 'add', label: 'Add Attendee' },
-      { key: 'delete', label: 'Delete Attendee' },
-      { key: 'seatmap', label: 'Seat Map' },
-    ];
-    return (
-      <div style={{ marginBottom: '16px' }}>
-        {views.map(v => (
-          <button
-            key={v.key}
-            onClick={() => setView(v.key)}
-            style={{
-              marginRight: '8px',
-              padding: '8px 16px',
-              fontWeight: activeView === v.key ? 'bold' : 'normal',
-              background: activeView === v.key ? '#1976d2' : '#e0e0e0',
-              color: activeView === v.key ? '#fff' : '#333',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            {v.label}
-          </button>
-        ))}
-      </div>
-    );
-  }
+function NavBar(props) {
+  const { activeView, setView } = props;
+  const views = [
+    { key: 'display', label: 'Display Attendees' },
+    { key: 'add', label: 'Add Attendee' },
+    { key: 'delete', label: 'Delete Attendee' },
+    { key: 'seatmap', label: 'Seat Map' },
+  ];
+  return (
+    <div style={{ marginBottom: '16px' }}>
+      {views.map(v => (
+        <button
+          key={v.key}
+          onClick={() => setView(v.key)}
+          style={{
+            marginRight: '8px',
+            padding: '8px 16px',
+            fontWeight: activeView === v.key ? 'bold' : 'normal',
+            background: activeView === v.key ? '#1976d2' : '#e0e0e0',
+            color: activeView === v.key ? '#fff' : '#333',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          {v.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /* =========================================
