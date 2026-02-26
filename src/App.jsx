@@ -248,19 +248,52 @@ class AddAttendee extends React.Component {
    DELETE ATTENDEE COMPONENT (Q5)
 ========================================= */
 class DeleteAttendee extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { seatInput: '', message: '' };
+    this.handleSubmit = this.handleSubmit.bind(this);
+  }
+
+  handleSubmit(e) {
+    e.preventDefault();
+    const { attendees, onDelete } = this.props;
+    const { seatInput } = this.state;
+
+    if (attendees.length === 0) {
+      this.setState({ message: 'Error: No attendees to delete.' });
+      return;
+    }
+    const seat = parseInt(seatInput, 10);
+    if (isNaN(seat) || seat < 1 || seat > TOTAL_SEATS) {
+      this.setState({ message: 'Error: Please enter a valid seat number (1-' + TOTAL_SEATS + ').' });
+      return;
+    }
+    const attendee = attendees.find(a => a.seatNumber === seat);
+    if (!attendee) {
+      this.setState({ message: 'Error: No attendee found at seat ' + seat + '.' });
+      return;
+    }
+    onDelete(attendee.id);
+    this.setState({ seatInput: '', message: 'Deleted ' + attendee.name + ' from seat ' + seat + '.' });
+  }
+
   render() {
+    const { seatInput, message } = this.state;
+    const msgStyle = message.startsWith('Error')
+      ? { color: '#b71c1c', background: '#fdecea', padding: '8px', marginBottom: '8px' }
+      : { color: '#2e7d32', background: '#e8f5e9', padding: '8px', marginBottom: '8px' };
     return (
       <div>
         <h2>Cancel Reservation</h2>
-
-        {/* TODO: Create a form to delete an attendee */}
-
-        {/* Options:
-            - Delete by Seat Number
-            - Delete by Name/Phone
-        */}
-
-        {/* TODO: On Submit → Remove attendee from reservation list */}
+        {message && <div style={msgStyle}>{message}</div>}
+        <form onSubmit={this.handleSubmit}>
+          <div style={{ marginBottom: '8px' }}>
+            <label>Seat Number: </label>
+            <input type="number" min="1" max={TOTAL_SEATS}
+              value={seatInput} onChange={e => this.setState({ seatInput: e.target.value })} />
+          </div>
+          <button type="submit" style={{ padding: '8px 16px', cursor: 'pointer' }}>Delete</button>
+        </form>
       </div>
     );
   }
