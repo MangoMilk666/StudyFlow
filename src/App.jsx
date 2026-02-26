@@ -1,13 +1,19 @@
 // App.jsx
 // IT5007 Assignment-1: TicketMaster
-//
-// Starter Skeleton (Entry-Level)
-//
-// IMPORTANT:
-// - This template is LLM generated and may have mistakes.
-// - It is the students responsiblity to fix mistakes in  template, if any.
-// - Students must fill in state, CRUD operations, and UI behavior.
-// - Search for "TODO" markers.
+
+/* =========================================
+   Q1: ATTENDEE DATA VARIABLE & SEAT CONFIG
+========================================= */
+// Seat configuration: seats 1-8 = Gold (with dinner), seats 9-10 = Silver
+const GOLD_SEATS = [1, 2, 3, 4, 5, 6, 7, 8];
+const SILVER_SEATS = [9, 10];
+const TOTAL_SEATS = 10;
+
+// Initial sample attendees (stored in JS variable, no database)
+const initialAttendees = [
+  { id: 1, name: 'Alice Johnson', phone: '91234567', seatNumber: 1, ticketCategory: 'Gold' },
+  { id: 2, name: 'Bob Smith', phone: '98765432', seatNumber: 9, ticketCategory: 'Silver' },
+];
 
 
 /* =========================================
