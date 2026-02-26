@@ -304,18 +304,45 @@ class DeleteAttendee extends React.Component {
 ========================================= */
 class SeatMap extends React.Component {
   render() {
+    const { attendees } = this.props;
+    const occupied = {};
+    attendees.forEach(a => { occupied[a.seatNumber] = a.ticketCategory; });
+
+    const seatStyle = (seatNum) => {
+      const cat = occupied[seatNum];
+      let bg = '#4caf50'; // green = empty
+      let color = '#fff';
+      if (cat === 'Gold') { bg = '#FFD700'; color = '#333'; }
+      if (cat === 'Silver') { bg = '#C0C0C0'; color = '#333'; }
+      return {
+        display: 'inline-block', width: '50px', height: '50px',
+        lineHeight: '50px', textAlign: 'center', margin: '4px',
+        borderRadius: '6px', fontWeight: 'bold', background: bg, color: color,
+        border: '2px solid rgba(0,0,0,0.15)',
+      };
+    };
+
+    const renderRow = (label, seats) => (
+      <div style={{ marginBottom: '12px' }}>
+        <b>{label}: </b>
+        {seats.map(s => (
+          <div key={s} style={seatStyle(s)}>{s}</div>
+        ))}
+      </div>
+    );
+
     return (
       <div>
         <h2>Seat Map</h2>
-
-        {/* TODO: Display 10 seats visually */}
-
-        {/* Rules:
-            - Empty seats → Green
-            - Reserved Gold seats → Gold
-            - Reserved Silver seats → Silver
-            - Seats must show seat number (1–10)
-        */}
+        {renderRow('Gold (1-8)', GOLD_SEATS)}
+        {renderRow('Silver (9-10)', SILVER_SEATS)}
+        <div style={{ marginTop: '12px', fontSize: '13px' }}>
+          <span style={{ display: 'inline-block', width: 16, height: 16, background: '#4caf50', borderRadius: 3, verticalAlign: 'middle' }}></span> Empty
+          {' | '}
+          <span style={{ display: 'inline-block', width: 16, height: 16, background: '#FFD700', borderRadius: 3, verticalAlign: 'middle' }}></span> Gold
+          {' | '}
+          <span style={{ display: 'inline-block', width: 16, height: 16, background: '#C0C0C0', borderRadius: 3, verticalAlign: 'middle' }}></span> Silver
+        </div>
       </div>
     );
   }
