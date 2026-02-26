@@ -124,17 +124,46 @@ class NavBar extends React.Component {
 ========================================= */
 class DisplayAttendees extends React.Component {
   render() {
+    const { attendees, onDelete } = this.props;
+    if (attendees.length === 0) {
+      return (
+        <div>
+          <h2>Attendee List</h2>
+          <p>No attendees yet.</p>
+        </div>
+      );
+    }
+    const sorted = attendees.slice().sort((a, b) => a.seatNumber - b.seatNumber);
     return (
       <div>
         <h2>Attendee List</h2>
-
-        {/* TODO: Fetch attendee data from App.jsx variable/state */}
-
-        {/* TODO: Display attendees in a table format */}
-
-        {/* Table Columns should include:
-            Seat Number | Name | Phone | Ticket Category
-        */}
+        <table className="bordered-table">
+          <thead>
+            <tr>
+              <th>Seat #</th>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Ticket Category</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map(a => (
+              <tr key={a.id}>
+                <td>{a.seatNumber}</td>
+                <td>{a.name}</td>
+                <td>{a.phone}</td>
+                <td>{a.ticketCategory}</td>
+                <td>
+                  <button onClick={() => onDelete(a.id)}
+                    style={{ background: '#dc3545', color: '#fff', border: 'none', padding: '4px 10px', cursor: 'pointer' }}>
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     );
   }
