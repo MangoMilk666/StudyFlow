@@ -173,18 +173,72 @@ class DisplayAttendees extends React.Component {
    ADD ATTENDEE COMPONENT (Q4)
 ========================================= */
 class AddAttendee extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { name: '', phone: '', category: 'Gold', message: '' };
+    this.handleSubmit = this.handleSubmit.bind(this);
+  }
+
+  handleSubmit(e) {
+    e.preventDefault();
+    const { name, phone, category } = this.state;
+    const { attendees, onAdd } = this.props;
+
+    // Validation
+    if (!name.trim() || !phone.trim()) {
+      this.setState({ message: 'Error: Name and Phone are required.' });
+      return;
+    }
+    if (attendees.some(a => a.phone === phone.trim())) {
+      this.setState({ message: 'Error: Phone number already registered.' });
+      return;
+    }
+    if (attendees.length >= TOTAL_SEATS) {
+      this.setState({ message: 'Error: All seats are fully booked.' });
+      return;
+    }
+
+    // Find lowest available seat in chosen category
+    const categorySeats = category === 'Gold' ? GOLD_SEATS : SILVER_SEATS;
+    const occupied = new Set(attendees.map(a => a.seatNumber));
+    const available = categorySeats.filter(s => !occupied.has(s));
+    if (available.length === 0) {
+      this.setState({ message: 'Error: No ' + category + ' seats available.' });
+      return;
+    }
+
+    const seat = available[0];
+    onAdd({ name: name.trim(), phone: phone.trim(), seatNumber: seat, ticketCategory: category });
+    this.setState({ name: '', phone: '', category: 'Gold', message: 'Booked seat ' + seat + ' (' + category + ') for ' + name.trim() + '.' });
+  }
+
   render() {
+    const { name, phone, category, message } = this.state;
+    const msgStyle = message.startsWith('Error')
+      ? { color: '#b71c1c', background: '#fdecea', padding: '8px', marginBottom: '8px' }
+      : { color: '#2e7d32', background: '#e8f5e9', padding: '8px', marginBottom: '8px' };
     return (
       <div>
         <h2>Add Attendee Reservation</h2>
-
-        {/* TODO: Create a form with fields:
-            Name, Phone, Ticket Category (Gold/Silver)
-        */}
-
-        {/* TODO: On Submit → Add attendee into reservation list */}
-
-        {/* TODO: Allocate seat number (1–10) */}
+        {message && <div style={msgStyle}>{message}</div>}
+        <form onSubmit={this.handleSubmit}>
+          <div style={{ marginBottom: '8px' }}>
+            <label>Name: </label>
+            <input value={name} onChange={e => this.setState({ name: e.target.value })} />
+          </div>
+          <div style={{ marginBottom: '8px' }}>
+            <label>Phone: </label>
+            <input value={phone} onChange={e => this.setState({ phone: e.target.value })} />
+          </div>
+          <div style={{ marginBottom: '8px' }}>
+            <label>Category: </label>
+            <select value={category} onChange={e => this.setState({ category: e.target.value })}>
+              <option value="Gold">Gold (with dinner)</option>
+              <option value="Silver">Silver</option>
+            </select>
+          </div>
+          <button type="submit" style={{ padding: '8px 16px', cursor: 'pointer' }}>Book Ticket</button>
+        </form>
       </div>
     );
   }
