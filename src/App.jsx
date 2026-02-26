@@ -189,6 +189,10 @@ class AddAttendee extends React.Component {
       this.setState({ message: 'Error: Phone number already registered.' });
       return;
     }
+    if (attendees.some(a => a.name.toLowerCase() === name.trim().toLowerCase())) {
+      this.setState({ message: 'Error: An attendee with this name already exists.' });
+      return;
+    }
     if (attendees.length >= TOTAL_SEATS) {
       this.setState({ message: 'Error: All seats are fully booked.' });
       return;
