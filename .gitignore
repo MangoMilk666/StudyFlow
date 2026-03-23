@@ -1,4 +1,37 @@
-package-lock.json
+# --- Dependencies ---
 node_modules/
-public/App.js
-public/App.test.js
+.pnp
+.pnp.js
+
+# --- Testing ---
+/coverage
+
+# --- Production/Build ---
+/frontend/dist
+/backend/dist
+*.pyc
+__pycache__/
+
+# --- Environment Variables (CRITICAL) ---
+.env
+.env.local
+.env.*.local
+*.env
+
+# --- OS / IDE ---
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+
+# --- Logs ---
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Docker & DB ---
+/data/

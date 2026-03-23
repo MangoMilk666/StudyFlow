@@ -1,0 +1,24 @@
+# 管理和编排多个容器的运行，启动一整套相互关联的服务（前端 + 后端 + 数据库）
+version: '3.8'
+services:
+  database:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=mongodb://database:27017/studyflow
+    depends_on:
+      - database
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    stdin_open: true # 保持 Vite 开发服务器交互
