@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务管理页面原型</title>
+    <style>
+        :root {
+            --border-color: #1a1a1a;
+            --bg-color: #ffffff;
+            --active-bg: #e6f3ff;
+            --btn-add-bg: #b0d4ff;
+            --btn-edit-bg: #fff1b8;
+            --btn-delete-bg: #ffccc7;
+            --priority-h: #ff4d4f;
+            --priority-m: #ffa940;
+            --priority-l: #73d13d;
+            --status-todo: #ff4d4f;
+            --status-done: #52c41a;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: "Comic Sans MS", "Chalkboard SE", "Microsoft YaHei", sans-serif;
+        }
+
+        body {
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        /* 主容器 */
+        .container {
+            background: var(--bg-color);
+            border: 3px solid var(--border-color);
+            border-radius: 40px;
+            padding: 30px;
+            width: 100%;
+            max-width: 1000px;
+            box-shadow: 8px 8px 0px rgba(0,0,0,0.1);
+        }
+
+        /* 顶部导航栏 */
+        .navbar {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .nav-item {
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 8px 25px;
+            font-weight: bold;
+            text-decoration: none;
+            color: var(--border-color);
+            background: white;
+            transition: all 0.2s;
+        }
+
+        .nav-item.active {
+            background: var(--active-bg);
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(176, 212, 255, 0.3) 5px, rgba(176, 212, 255, 0.3) 10px);
+        }
+
+        /* 工具栏 */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 0 10px;
+        }
+
+        .btn-add {
+            background: var(--btn-add-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            padding: 10px 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 3px 3px 0px var(--border-color);
+        }
+
+        .btn-add:active {
+            box-shadow: 0px 0px 0px var(--border-color);
+            transform: translate(2px, 2px);
+        }
+
+        .priority-legend {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        /* 表格样式 */
+        .table-wrapper {
+            border: 2px solid var(--border-color);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+        }
+
+        th {
+            border-bottom: 2px solid var(--border-color);
+            border-right: 1px solid #ddd;
+            padding: 15px;
+            background: #fafafa;
+        }
+
+        td {
+            border-bottom: 1px solid #eee;
+            border-right: 1px solid #ddd;
+            padding: 12px;
+            vertical-align: middle;
+        }
+
+        th:last-child, td:last-child {
+            border-right: none;
+        }
+
+        /* 状态与优先级 */
+        .priority-h { color: var(--priority-h); font-weight: bold; }
+        .priority-m { color: var(--priority-m); font-weight: bold; }
+        .priority-l { color: var(--priority-l); font-weight: bold; }
+        
+        .status-todo { color: var(--status-todo); font-weight: bold; }
+        .status-done { color: var(--status-done); font-weight: bold; }
+
+        /* 操作按钮 */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .btn-op {
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 5px 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-edit { background: var(--btn-edit-bg); }
+        .btn-delete { background: var(--btn-delete-bg); }
+
+        .placeholder-row td {
+            color: #999;
+            padding: 20px;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 菜单栏 -->
+    <nav class="navbar">
+        <a href="#" class="nav-item">Home</a>
+        <a href="#" class="nav-item">Dashboard</a>
+        <a href="#" class="nav-item active">Tasks</a>
+        <a href="#" class="nav-item">Focus</a>
+        <a href="#" class="nav-item">Settings</a>
+    </nav>
+
+    <!-- 工具栏 -->
+    <div class="toolbar">
+        <button class="btn-add">Add New Task</button>
+        <div class="priority-legend">
+            Priority: <span class="priority-h">H</span>(igh), <span class="priority-m">M</span>(edium), <span class="priority-l">L</span>(ow)
+        </div>
+    </div>
+
+    <!-- 表格区域 -->
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Deadline</th>
+                    <th>Module</th>
+                    <th></th> <!-- 优先级列 -->
+                    <th>Create Time</th>
+                    <th>Status</th>
+                    <th>Operation</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>LeetCode<br>Hard * 3</td>
+                    <td>2026-03-20</td>
+                    <td>it5003</td>
+                    <td><span class="priority-m">M</span></td>
+                    <td>2026-03-19 16:50</td>
+                    <td><span class="status-todo">To Do</span></td>
+                    <td>
+                        <div class="btn-group">
+                            <button class="btn-op btn-edit">Edit</button>
+                            <button class="btn-op btn-delete">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td>Meta Interview</td>
+                    <td>2026-03-19</td>
+                    <td>Job Seeking</td>
+                    <td><span class="priority-h">H</span></td>
+                    <td>2026-03-17 00:02</td>
+                    <td><span class="status-done">Done</span></td>
+                    <td>
+                        <div class="btn-group">
+                            <button class="btn-op btn-edit">Edit</button>
+                            <button class="btn-op btn-delete">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td>AI Seminar</td>
+                    <td>2026-03-18</td>
+                    <td>seminar</td>
+                    <td><span class="priority-l">L</span></td>
+                    <td>2026-03-14 21:07</td>
+                    <td><span class="status-done">Done</span></td>
+                    <td>
+                        <div class="btn-group">
+                            <button class="btn-op btn-edit">Edit</button>
+                            <button class="btn-op btn-delete">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+                <tr class="placeholder-row">
+                    <td>...</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                </tr>
+                <!-- 空行模拟图片效果 -->
+                <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+</body>
+</html>
