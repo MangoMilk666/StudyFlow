@@ -1,0 +1,62 @@
+import axios from 'axios'
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+// Add token to requests if available
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Auth API
+export const authAPI = {
+  register: (username, email, password) =>
+    apiClient.post('/auth/register', { username, email, password }),
+  login: (email, password) =>
+    apiClient.post('/auth/login', { email, password }),
+};
+
+// Task API
+export const taskAPI = {
+  getAllTasks: (userId) => apiClient.get('/tasks', { params: { userId } }),
+  createTask: (taskData) => apiClient.post('/tasks', taskData),
+  getTaskById: (id) => apiClient.get(`/tasks/${id}`),
+  updateTask: (id, updates) => apiClient.put(`/tasks/${id}`, updates),
+  deleteTask: (id) => apiClient.delete(`/tasks/${id}`),
+  updateTaskStatus: (id, status) =>
+    apiClient.patch(`/tasks/${id}/status`, { status }),
+  addSubtask: (id, text) => apiClient.post(`/tasks/${id}/subtask`, { text }),
+};
+
+// Module API
+export const moduleAPI = {
+  getAllModules: (userId) => apiClient.get('/modules', { params: { userId } }),
+  createModule: (moduleData) => apiClient.post('/modules', moduleData),
+  updateModule: (id, updates) => apiClient.put(`/modules/${id}`, updates),
+  deleteModule: (id) => apiClient.delete(`/modules/${id}`),
+};
+
+// Timer API
+export const timerAPI = {
+  startTimer: (taskId, userId) =>
+    apiClient.post('/timer/start', { taskId, userId }),
+  stopTimer: (taskId, userId, duration) =>
+    apiClient.post('/timer/stop', { taskId, userId, duration }),
+  getTimerLogs: (taskId) => apiClient.get(`/timer/logs/${taskId}`),
+  getWeeklyStats: (userId) => apiClient.get(`/timer/weekly-stats/${userId}`),
+};
+
+export default apiClient;
