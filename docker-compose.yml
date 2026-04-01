@@ -1,24 +1,70 @@
 # 管理和编排多个容器的运行，启动一整套相互关联的服务（前端 + 后端 + 数据库）
-version: '3.8'
 services:
+  # MongoDB Database Service
   database:
     image: mongo:latest
+    container_name: studyflow-db
     ports:
       - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: studyflow
     volumes:
       - mongo-data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - studyflow-network
 
+  # Backend API Service
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: studyflow-backend
     ports:
-      - "5000:5000"
+      - "8000:8000"
     environment:
       - MONGO_URI=mongodb://database:27017/studyflow
+      - JWT_SECRET=studyflow_jwt_secret_key_2026
+      - NODE_ENV=production
+      - PORT=8000
     depends_on:
-      - database
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - studyflow-network
+    restart: unless-stopped
 
+  # Frontend Web Service
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: studyflow-frontend
     ports:
       - "5173:5173"
-    stdin_open: true # 保持 Vite 开发服务器交互
+    environment:
+      - VITE_API_URL=http://localhost:5000/api
+    depends_on:
+      - backend
+    networks:
+      - studyflow-network
+    restart: unless-stopped
+
+# Named volumes for data persistence
+volumes:
+  mongo-data:
+    driver: local
+
+# Network for service communication
+networks:
+  studyflow-network:
+    driver: bridge

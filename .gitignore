@@ -35,3 +35,6 @@ yarn-error.log*
 
 # --- Docker & DB ---
 /data/
+
+# ignored directories
+/external_files/

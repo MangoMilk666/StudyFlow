@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudyFlow - Focus</title>
+    <style>
+        :root {
+            --ink: #1a1a1a;
+            --bg: #ffffff;
+            --timer-blue: #a9d6ff;
+            --task-yellow: #fdf2b1;
+            --task-purple: #d1c4f9;
+            --btn-cancel: #f0f0f0;
+            --btn-pause: #ffcf9f;
+        }
+
+        * {
+            box-sizing: border-box;
+            /* 模拟手写感字体 */
+            font-family: "Comic Sans MS", "Chalkboard SE", "Marker Felt", "Microsoft YaHei", sans-serif;
+        }
+
+        body {
+            margin: 0;
+            background-color: #f7f7f7;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* 主容器 */
+        .main-frame {
+            background: var(--bg);
+            border: 4px solid var(--ink);
+            border-radius: 40px;
+            width: 100%;
+            max-width: 1100px;
+            padding: 30px;
+            box-shadow: 12px 12px 0px rgba(0,0,0,0.05);
+        }
+
+        /* 顶部导航 */
+        .nav-bar {
+            border: 3px solid var(--ink);
+            border-radius: 15px;
+            display: flex;
+            gap: 10px;
+            padding: 8px;
+            width: fit-content;
+            margin: 0 auto 30px auto;
+            background: white;
+        }
+
+        .nav-item {
+            border: 2px solid var(--ink);
+            border-radius: 10px;
+            padding: 6px 20px;
+            font-weight: bold;
+            color: var(--ink);
+            text-decoration: none;
+            background: white;
+        }
+
+        /* Focus 激活状态：蓝色斜纹 */
+        .nav-item.active {
+            background: #e6f3ff;
+            background-image: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 6px,
+                rgba(0, 150, 255, 0.1) 6px,
+                rgba(0, 150, 255, 0.1) 12px
+            );
+        }
+
+        /* 主内容网格 */
+        .focus-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 40px;
+            align-items: center;
+        }
+
+        /* 计时器区域 */
+        .timer-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .timer-ring {
+            width: 420px;
+            height: 420px;
+            border: 15px solid var(--timer-blue);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .time-display {
+            font-size: 64px;
+            font-weight: bold;
+            color: var(--ink);
+        }
+
+        .timer-controls {
+            display: flex;
+            gap: 40px;
+            margin-top: -60px; /* 使按钮重叠在圆环下方 */
+            z-index: 10;
+        }
+
+        .btn {
+            border: 3px solid var(--ink);
+            border-radius: 12px;
+            padding: 10px 25px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 4px 4px 0px var(--ink);
+            transition: all 0.1s;
+        }
+
+        .btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px var(--ink);
+        }
+
+        .btn-cancel { background: var(--btn-cancel); }
+        .btn-pause { background: var(--btn-pause); }
+
+        /* 任务面板 */
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .task-card {
+            border: 3px solid var(--ink);
+            border-radius: 30px;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .task-card h3 {
+            margin-top: 0;
+            font-size: 28px;
+            margin-bottom: 30px;
+        }
+
+        .task-card p {
+            font-size: 24px;
+            margin-bottom: 0;
+            font-weight: bold;
+        }
+
+        .current-task { background-color: var(--task-yellow); }
+        .next-task { background-color: var(--task-purple); }
+
+        /* 响应式 */
+        @media (max-width: 900px) {
+            .focus-grid {
+                grid-template-columns: 1fr;
+            }
+            .timer-ring {
+                width: 320px;
+                height: 320px;
+            }
+            .time-display {
+                font-size: 48px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-frame">
+        <!-- 导航栏 -->
+        <nav class="nav-bar">
+            <a href="#" class="nav-item">Home</a>
+            <a href="#" class="nav-item">Dashboard</a>
+            <a href="#" class="nav-item">Tasks</a>
+            <a href="#" class="nav-item active">Focus</a>
+            <a href="#" class="nav-item">Settings</a>
+        </nav>
+
+        <!-- 专注模式内容 -->
+        <main class="focus-grid">
+            <!-- 左侧计时器 -->
+            <section class="timer-container">
+                <div class="timer-ring">
+                    <div id="time" class="time-display">24:59</div>
+                </div>
+                <div class="timer-controls">
+                    <button id="cancelBtn" class="btn btn-cancel">Cancel</button>
+                    <button id="pauseBtn" class="btn btn-pause">Pause</button>
+                </div>
+            </section>
+
+            <!-- 右侧任务 -->
+            <section class="task-list">
+                <div class="task-card current-task">
+                    <h3>Current Task</h3>
+                    <p>it 5003 AY24-2S51 final</p>
+                </div>
+                <div class="task-card next-task">
+                    <h3>Next Task</h3>
+                    <p>cs 5242 assignment 1</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // 简单的计时器逻辑
+        let timeLeft = 25 * 60 - 1; // 设置为 24:59 开始
+        let timerId = null;
+        let isRunning = true;
+
+        const timeDisplay = document.getElementById('time');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+
+        function updateDisplay() {
+            const mins = Math.floor(timeLeft / 60);
+            const secs = timeLeft % 60;
+            timeDisplay.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function startTimer() {
+            timerId = setInterval(() => {
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    updateDisplay();
+                } else {
+                    clearInterval(timerId);
+                    alert("Time is up!");
+                }
+            }, 1000);
+        }
+
+        pauseBtn.addEventListener('click', () => {
+            if (isRunning) {
+                clearInterval(timerId);
+                pauseBtn.textContent = 'Resume';
+            } else {
+                startTimer();
+                pauseBtn.textContent = 'Pause';
+            }
+            isRunning = !isRunning;
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            clearInterval(timerId);
+            timeLeft = 25 * 60;
+            updateDisplay();
+            pauseBtn.textContent = 'Start';
+            isRunning = false;
+        });
+
+        // 页面加载后自动开始
+        startTimer();
+    </script>
+</body>
+</html>
