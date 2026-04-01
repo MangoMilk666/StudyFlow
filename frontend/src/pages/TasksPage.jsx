@@ -16,7 +16,7 @@ export default function TasksPage() {
   const { tasks, addTask, removeTask, updateTask } = useTasks('demo_user')
 
   return (
-    <div className="sf-page align-top">
+    <div className="sf-page">
       <div className="main-frame">
         <TopNav />
 
@@ -56,85 +56,87 @@ export default function TasksPage() {
           </div>
 
           <div style={{ border: `2px solid var(--ink)`, borderRadius: 20, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
-              <thead>
-                <tr>
-                  <th style={{ borderBottom: `2px solid var(--ink)`, borderRight: '1px solid #ddd', padding: 15, background: '#fafafa' }}>
-                    Name
-                  </th>
-                  <th style={{ borderBottom: `2px solid var(--ink)`, borderRight: '1px solid #ddd', padding: 15, background: '#fafafa' }}>
-                    Deadline
-                  </th>
-                  <th style={{ borderBottom: `2px solid var(--ink)`, borderRight: '1px solid #ddd', padding: 15, background: '#fafafa' }}>
-                    Module
-                  </th>
-                  <th style={{ borderBottom: `2px solid var(--ink)`, borderRight: '1px solid #ddd', padding: 15, background: '#fafafa' }}>
-                    
-                  </th>
-                  <th style={{ borderBottom: `2px solid var(--ink)`, borderRight: '1px solid #ddd', padding: 15, background: '#fafafa' }}>
-                    Create Time
-                  </th>
-                  <th style={{ borderBottom: `2px solid var(--ink)`, borderRight: '1px solid #ddd', padding: 15, background: '#fafafa' }}>
-                    Status
-                  </th>
-                  <th style={{ borderBottom: `2px solid var(--ink)`, padding: 15, background: '#fafafa' }}>Operation</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tasks.map((t) => (
-                  <tr key={t.id}>
-                    <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{t.name}</td>
-                    <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{t.deadline}</td>
-                    <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{t.module}</td>
-                    <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>
-                      <span className={priorityClass(t.priority)}>{t.priority}</span>
-                    </td>
-                    <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{t.createdAt}</td>
-                    <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{statusNode(t.status)}</td>
-                    <td style={{ borderBottom: '1px solid #eee', padding: 12 }}>
-                      <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                        <button
-                          type="button"
-                          onClick={() => updateTask(t.id, { status: t.status === 'done' ? 'todo' : 'done' })}
-                          style={{
-                            border: `2px solid var(--ink)`,
-                            borderRadius: 8,
-                            padding: '5px 20px',
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            background: 'var(--btn-edit-bg)',
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeTask(t.id)}
-                          style={{
-                            border: `2px solid var(--ink)`,
-                            borderRadius: 8,
-                            padding: '5px 20px',
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            background: 'var(--btn-delete-bg)',
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-
-                {tasks.length === 0 ? (
+            <div className="sf-xscroll">
+              <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', textAlign: 'center' }}>
+                <thead>
                   <tr>
-                    <td colSpan={7} style={{ color: '#999', padding: 20 }}>
-                      No tasks
-                    </td>
+                    <th style={{ borderBottom: `2px solid var(--ink)`, borderRight: '1px solid #ddd', padding: 15, background: '#fafafa' }}>
+                      Name
+                    </th>
+                    <th style={{ borderBottom: `2px solid var(--ink)`, borderRight: '1px solid #ddd', padding: 15, background: '#fafafa' }}>
+                      Deadline
+                    </th>
+                    <th style={{ borderBottom: `2px solid var(--ink)`, borderRight: '1px solid #ddd', padding: 15, background: '#fafafa' }}>
+                      Module
+                    </th>
+                    <th style={{ borderBottom: `2px solid var(--ink)`, borderRight: '1px solid #ddd', padding: 15, background: '#fafafa' }}>
+                      
+                    </th>
+                    <th style={{ borderBottom: `2px solid var(--ink)`, borderRight: '1px solid #ddd', padding: 15, background: '#fafafa' }}>
+                      Create Time
+                    </th>
+                    <th style={{ borderBottom: `2px solid var(--ink)`, borderRight: '1px solid #ddd', padding: 15, background: '#fafafa' }}>
+                      Status
+                    </th>
+                    <th style={{ borderBottom: `2px solid var(--ink)`, padding: 15, background: '#fafafa' }}>Operation</th>
                   </tr>
-                ) : null}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {tasks.map((t) => (
+                    <tr key={t.id}>
+                      <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{t.name}</td>
+                      <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{t.deadline}</td>
+                      <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{t.module}</td>
+                      <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>
+                        <span className={priorityClass(t.priority)}>{t.priority}</span>
+                      </td>
+                      <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{t.createdAt}</td>
+                      <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{statusNode(t.status)}</td>
+                      <td style={{ borderBottom: '1px solid #eee', padding: 12 }}>
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => updateTask(t.id, { status: t.status === 'done' ? 'todo' : 'done' })}
+                            style={{
+                              border: `2px solid var(--ink)`,
+                              borderRadius: 8,
+                              padding: '5px 20px',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                              background: 'var(--btn-edit-bg)',
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeTask(t.id)}
+                            style={{
+                              border: `2px solid var(--ink)`,
+                              borderRadius: 8,
+                              padding: '5px 20px',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                              background: 'var(--btn-delete-bg)',
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {tasks.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ color: '#999', padding: 20 }}>
+                        No tasks
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>

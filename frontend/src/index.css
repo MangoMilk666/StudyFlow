@@ -88,6 +88,14 @@ a {
   scrollbar-gutter: stable;
 }
 
+/* Tasks 等表格在小屏时横向滚动，避免列被挤压到不可读 */
+.sf-xscroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
 .nav-bar {
   border: 3px solid var(--ink);
   border-radius: 15px;
