@@ -57,31 +57,35 @@ export default function Dashboard() {
 
   return (
     <div className="sf-page">
-      <div className="main-frame" style={{ maxWidth: 1000 }}>
+      <div className="main-frame">
         <TopNav />
 
-        <main
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gridTemplateRows: '1fr 1fr',
-            gap: 30,
-          }}
-        >
-          <Panel title="To Do" color="var(--panel-todo)" tasks={byStatus.todo} onTaskClick={cycleStatus} />
-          <Panel
-            title="In Progress"
-            color="var(--panel-progress)"
-            tasks={byStatus.in_progress}
-            onTaskClick={cycleStatus}
-          />
-          <Panel title="Review" color="var(--panel-review)" tasks={byStatus.review} onTaskClick={cycleStatus} />
-          <Panel title="Done" color="var(--panel-done)" tasks={byStatus.done} onTaskClick={cycleStatus} />
-        </main>
+        <div className="sf-scroll">
+          <main
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gridTemplateRows: '1fr 1fr',
+              gap: 30,
+            }}
+          >
+            <Panel title="To Do" color="var(--panel-todo)" tasks={byStatus.todo} onTaskClick={cycleStatus} />
+            <Panel
+              title="In Progress"
+              color="var(--panel-progress)"
+              tasks={byStatus.in_progress}
+              onTaskClick={cycleStatus}
+            />
+            <Panel title="Review" color="var(--panel-review)" tasks={byStatus.review} onTaskClick={cycleStatus} />
+            <Panel title="Done" color="var(--panel-done)" tasks={byStatus.done} onTaskClick={cycleStatus} />
+          </main>
 
-        <div style={{ marginTop: 18, fontSize: 12, opacity: 0.8 }}>
-          备注：这是“页面骨架 + 演示交互”。后续你可以把 task 列表从本地 mock 切到 `/api/tasks`。
-          {apiHealth.status === 'ok' ? ` 后端：已连接（${apiHealth.data?.status || 'unknown'}）` : ' 后端：未连接（可先用 MOCK_MODE=true 启动后端）'}
+          <div style={{ marginTop: 18, fontSize: 12, opacity: 0.8 }}>
+            备注：这是“页面骨架 + 演示交互”。后续你可以把 task 列表从本地 mock 切到 `/api/tasks`。
+            {apiHealth.status === 'ok'
+              ? ` 后端：已连接（${apiHealth.data?.status || 'unknown'}）`
+              : ' 后端：未连接（可先用 MOCK_MODE=true 启动后端）'}
+          </div>
         </div>
       </div>
     </div>

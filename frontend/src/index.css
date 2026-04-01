@@ -22,6 +22,13 @@
   --priority-l: #73d13d;
   --status-todo: #ff4d4f;
   --status-done: #52c41a;
+
+  /* 页面外层“矩形框”统一尺寸（随窗口弹性变化）：
+     - 目标：略小于浏览器窗口、尽量铺满约 2/3 屏幕宽度
+     - 兜底：小窗口不溢出（用 min() 限制在视口内） */
+  --sf-frame-margin: 24px;
+  --sf-frame-width: clamp(760px, 66vw, 1200px);
+  --sf-frame-height: clamp(560px, 78vh, 900px);
 }
 
 * {
@@ -51,39 +58,54 @@ a {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 20px;
+  padding: var(--sf-frame-margin);
 }
 
 .sf-page.align-top {
   align-items: flex-start;
-  padding: 40px 20px;
+  padding: var(--sf-frame-margin);
 }
 
 .main-frame {
   background: var(--bg);
   border: 4px solid var(--ink);
-  border-radius: 40px;
-  width: 100%;
-  max-width: 1100px;
-  padding: 30px;
+  border-radius: clamp(22px, 3vw, 40px);
+  width: min(var(--sf-frame-width), calc(100vw - var(--sf-frame-margin) * 2));
+  height: min(var(--sf-frame-height), calc(100vh - var(--sf-frame-margin) * 2));
+  padding: clamp(16px, 2.2vw, 30px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 1.2vw, 16px);
+  overflow: hidden;
   box-shadow: 12px 12px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* 内容区可滚动，保证外部框线大小在页面间统一 */
+.sf-scroll {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
 }
 
 .nav-bar {
   border: 3px solid var(--ink);
   border-radius: 15px;
   display: flex;
-  gap: 10px;
-  padding: 8px;
-  width: fit-content;
-  margin: 0 auto 30px auto;
+  gap: clamp(8px, 1vw, 12px);
+  padding: clamp(6px, 0.9vw, 10px);
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 0 auto;
   background: white;
 }
 
 .nav-item {
   border: 2px solid var(--ink);
   border-radius: 10px;
-  padding: 6px 18px;
+  padding: clamp(4px, 0.7vw, 8px) clamp(10px, 1.3vw, 18px);
+  font-size: clamp(12px, 1.05vw, 16px);
   font-weight: bold;
   text-decoration: none;
   background: white;
@@ -188,6 +210,7 @@ a {
 
 @media (max-width: 900px) {
   .main-frame {
+    height: min(var(--sf-frame-height), calc(100vh - 16px * 2));
     padding: 18px;
     border-radius: 24px;
   }

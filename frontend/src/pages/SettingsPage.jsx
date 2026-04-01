@@ -38,17 +38,18 @@ function Section({ title, color, left, right }) {
 export default function SettingsPage() {
   return (
     <div className="sf-page">
-      <div className="main-frame" style={{ maxWidth: 1000, padding: 40 }}>
+      <div className="main-frame">
         <TopNav />
 
-        <main style={{ border: `3px solid var(--ink)`, borderRadius: 30, padding: '10px 30px 30px 30px' }}>
-          <Section title="Account" color="var(--active-bg)" left="Change Email" right="Option Bar1" />
-          <Section title="Security" color="var(--btn-edit-bg)" left="Device Management" right="Option Bar1" />
-          <Section title="Privacy" color="var(--panel-done)" left="Data Sharing" right="Option Bar1" />
-          <Section title="Preferences" color="var(--btn-delete-bg)" left="Languages" right="Option Bar1" />
-        </main>
+        <div className="sf-scroll">
+          <main style={{ border: `3px solid var(--ink)`, borderRadius: 30, padding: '10px 30px 30px 30px' }}>
+            <Section title="Account" color="var(--active-bg)" left="Change Email" right="Option Bar1" />
+            <Section title="Security" color="var(--btn-edit-bg)" left="Device Management" right="Option Bar1" />
+            <Section title="Privacy" color="var(--panel-done)" left="Data Sharing" right="Option Bar1" />
+            <Section title="Preferences" color="var(--btn-delete-bg)" left="Languages" right="Option Bar1" />
+          </main>
+        </div>
       </div>
     </div>
   )
 }
-
