@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import TopNav from '../components/TopNav'
-import { useTasks } from '../hooks/useData'
+import { useI18n } from '../i18n'
+import { useUnifiedTasks } from '../hooks/useUnifiedTasks'
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60)
@@ -9,10 +10,17 @@ function formatTime(seconds) {
 }
 
 export default function FocusPage() {
-  const { tasks } = useTasks('demo_user')
+  const { tasks } = useUnifiedTasks()
+  const { t } = useI18n()
 
-  const [currentTaskId, setCurrentTaskId] = useState(tasks[0]?.id || '')
-  const [nextTaskId, setNextTaskId] = useState(tasks[1]?.id || '')
+  const [currentTaskId, setCurrentTaskId] = useState('')
+  const [nextTaskId, setNextTaskId] = useState('')
+
+  useEffect(() => {
+    if (!tasks.length) return
+    if (!currentTaskId) setCurrentTaskId(tasks[0]?.id || '')
+    if (!nextTaskId) setNextTaskId(tasks[1]?.id || '')
+  }, [tasks, currentTaskId, nextTaskId])
 
   const currentTask = useMemo(() => tasks.find((t) => t.id === currentTaskId), [tasks, currentTaskId])
   const nextTask = useMemo(() => tasks.find((t) => t.id === nextTaskId), [tasks, nextTaskId])
@@ -36,8 +44,8 @@ export default function FocusPage() {
   useEffect(() => {
     if (timeLeft !== 0) return
     setIsRunning(false)
-    window.alert('Time is up!')
-  }, [timeLeft])
+    window.alert(t('focus.timeUp'))
+  }, [timeLeft, t])
 
   return (
     <div className="sf-page">
@@ -78,7 +86,7 @@ export default function FocusPage() {
                   }}
                   style={{ background: '#f0f0f0' }}
                 >
-                  Cancel
+                  {t('focus.cancel')}
                 </button>
                 <button
                   className="btn"
@@ -86,12 +94,12 @@ export default function FocusPage() {
                   onClick={() => setIsRunning((v) => !v)}
                   style={{ background: '#ffcf9f' }}
                 >
-                  {isRunning ? 'Pause' : 'Resume'}
+                  {isRunning ? t('focus.pause') : t('focus.resume')}
                 </button>
               </div>
 
               <div style={{ marginTop: 26, fontSize: 12, opacity: 0.8, textAlign: 'center' }}>
-                页面骨架阶段：计时结束会弹窗提示；后续可对接 `/api/timer/*` 写入记录。
+                {t('focus.skeletonNote')}
               </div>
             </section>
 
@@ -105,9 +113,9 @@ export default function FocusPage() {
                   background: 'var(--panel-progress)',
                 }}
               >
-                <h3 style={{ margin: 0, fontSize: 28, marginBottom: 16 }}>Current Task</h3>
+                <h3 style={{ margin: 0, fontSize: 28, marginBottom: 16 }}>{t('focus.currentTask')}</h3>
                 <p style={{ fontSize: 24, margin: 0, fontWeight: 'bold' }}>
-                  {currentTask?.name || '未选择'}
+                  {currentTask?.name || t('focus.unselected')}
                 </p>
                 <div style={{ marginTop: 14 }}>
                   <select
@@ -140,8 +148,8 @@ export default function FocusPage() {
                   background: '#d1c4f9',
                 }}
               >
-                <h3 style={{ margin: 0, fontSize: 28, marginBottom: 16 }}>Next Task</h3>
-                <p style={{ fontSize: 24, margin: 0, fontWeight: 'bold' }}>{nextTask?.name || '未选择'}</p>
+                <h3 style={{ margin: 0, fontSize: 28, marginBottom: 16 }}>{t('focus.nextTask')}</h3>
+                <p style={{ fontSize: 24, margin: 0, fontWeight: 'bold' }}>{nextTask?.name || t('focus.unselected')}</p>
                 <div style={{ marginTop: 14 }}>
                   <select
                     value={nextTaskId}

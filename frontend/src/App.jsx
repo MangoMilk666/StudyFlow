@@ -5,7 +5,8 @@ import FocusPage from './pages/FocusPage'
 import HomePage from './pages/HomePage'
 import SettingsPage from './pages/SettingsPage'
 import TasksPage from './pages/TasksPage'
-import { useAuth } from './hooks/useData'
+import { AuthProvider, useAuth } from './auth'
+import { I18nProvider } from './i18n'
 import './App.css'
 
 function App() {
@@ -31,4 +32,14 @@ function App() {
   )
 }
 
-export default App
+function AppProviders() {
+  return (
+    <AuthProvider>
+      <I18nProvider>
+        <App />
+      </I18nProvider>
+    </AuthProvider>
+  )
+}
+
+export default AppProviders

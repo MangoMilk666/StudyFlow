@@ -1,130 +1,97 @@
-# IT5007 Group Project
+# StudyFlow（效率管理项目）
 
-## 🚀 快速启动指南
+StudyFlow 是一个面向学生的学习效率管理 Demo：以任务看板（Kanban）为核心，配套计时与统计能力。
 
-### 前置条件
-- Docker & Docker Compose 已安装
-- 端口 27017 (MongoDB)、8000 (Backend)、5173 (Frontend) 可用
+## 当前已实现功能清单（以仓库代码为准）
 
-### 启动应用
+### 后端（`backend/`，Express + MongoDB/Mongoose）
+
+- ✅ 健康检查：`GET /api/health`
+- ✅ 认证：`POST /api/auth/register`、`POST /api/auth/login`（bcrypt 哈希、JWT 签发）
+- ✅ 任务 Tasks：`GET/POST /api/tasks`、`GET/PUT/DELETE /api/tasks/:id`、`PATCH /api/tasks/:id/status`、`POST /api/tasks/:id/subtask`
+- ✅ 模块 Modules：`GET/POST /api/modules`、`PUT/DELETE /api/modules/:id`
+- ✅ 计时 Timer：`POST /api/timer/start`、`POST /api/timer/stop`、`GET /api/timer/logs/:taskId`、`GET /api/timer/weekly-stats/:userId`
+- ✅ 数据模型：User/Task/Module/TimerLog
+- ✅ 支持 `MOCK_MODE=true`：后端不连 MongoDB，走内存 mock 路由（最小可用 API）
+
+重要说明：当前后端未实现 JWT 校验中间件（未对 `Authorization: Bearer ...` 做 `jwt.verify`）；业务接口主要以 `userId` 字段/查询参数做筛选。
+
+### 前端（`frontend/`，React + Vite）
+
+- ✅ 页面与路由：`/`（Home）、`/auth`（登录/注册演示）、`/dashboard`、`/tasks`、`/focus`、`/settings`
+- ✅ Dashboard：4 状态任务面板（To Do / In Progress / Review / Done），支持点击任务循环切换状态（演示交互）
+- ✅ Tasks：任务列表表格（Add/Edit/Delete 演示）
+- ✅ Focus：25 分钟倒计时 + 暂停/继续/取消（演示交互）
+- ✅ Settings：设置页面骨架（按钮占位）
+- ✅ 健康检查提示：前端会探测 `/api/health` 判断后端是否可达
+
+重要说明：当前前端的“登录状态/任务数据”默认使用 `localStorage` 的 demo 数据；仓库内已提供 `frontend/src/services/api.js` 的 Axios API 封装，但尚未完全接入页面逻辑（例如 token key 与 `useAuth` 存储不一致）。
+
+### 基础设施
+
+- ✅ `docker-compose.yml`：编排 MongoDB + Backend + Frontend(Nginx)
+- ✅ `frontend/nginx.conf`：将 `/api/` 反代到 `backend:8000`
+
+## 本地调试
+
+### 方式 1：Docker Compose（推荐）
 
 ```bash
 cd /path/to/StudyFlow
-
-# 启动所有服务（后台）
-docker-compose up -d
-
-# 查看容器状态
-docker ps
-
-# 查看实时日志
+docker-compose up -d --build
+docker-compose ps
 docker-compose logs -f
 ```
 
-### 访问应用
+访问：
 
-| 服务 | URL | 用途 |
-|------|-----|------|
-| **前端** | http://localhost:5173 | React Web 界面，登录即可开始|
-| **后端 API** | http://localhost:8000/api | REST API 服务 |
-| **数据库** | localhost:27017 | MongoDB 数据库服务 |
+| 服务 | URL |
+|------|-----|
+| 前端 | http://localhost:5173 |
+| 后端 API | http://localhost:8000/api |
+| 健康检查 | http://localhost:8000/api/health |
+| MongoDB | mongodb://localhost:27017/studyflow |
 
-### 停止应用
+停止：
 
 ```bash
-docker-compose down        # 停止所有服务
-docker-compose down -v     # 停止服务并删除数据卷
+docker-compose down
+docker-compose down -v
 ```
 
-### 本地开发（无 Docker）
+### 方式 2：本地开发（不使用 Docker）
+
+#### 后端
 
 ```bash
-# 后端启动
 cd backend
 npm install
 
-# 方式 A：直接连 MongoDB（需要本地已启动 MongoDB）
-npm start                # 运行在 http://localhost:8000
+# 方式 A：连接本地 MongoDB
+npm start  # http://localhost:8000
 
-# 方式 B：Mock 模式（不依赖 MongoDB，提供最小可用占位 API）
-npm run dev:mock         # 运行在 http://localhost:8000
-
-# 前端启动（新终端）
-cd frontend
-npm install
-npm run dev              # 运行在 http://localhost:5173
+# 方式 B：MOCK 模式（不依赖 MongoDB）
+npm run dev:mock  # http://localhost:8000
 ```
 
-文档同步位置：
-- 重构 PRD / 技术架构 / 页面设计：`docs/refactor/`
+后端环境变量示例见 `backend/.env.example`。
 
----
+#### 前端
 
-## Requirement (PPT)
+```bash
+cd frontend
+npm install
+npm run dev  # http://localhost:5173
+```
 
->  Requirement: To build a fully functional website. No need to host it on cloud. We will be testing it in our docker-based setup.
+本地开发时，Vite 已在 `frontend/vite.config.js` 配置 `/api` 代理到 `http://127.0.0.1:8000`。
 
-# Project: **StudyFlow**
+## 文档
 
-**Positioning:** A learning task management platform designed for students, based on kanban boards and task flows.
+- 需求/数据库/结构说明：`docs/`
+- API 示例：`API_EXAMPLES.md`
+- 历次修改记录（已从 `external_files/` 汇总）：`doc/update-record.md`
 
-------
+## 备注（历史遗留）
 
-## 1. Core Highlights
-
-- **Task Priority System:** Introduces the “Four Quadrant Method” (Important/Urgent) to help students schedule tasks scientifically.
-- **Pomodoro Timer Integration:** Not only records tasks but also allows users to start focus timers directly within the web interface.
-- **Docker Automated Deployment:** Database and backend services can be launched with one command, ensuring seamless execution in the teaching assistant’s environment.
-
-------
-
-## 2. Technology Stack
-
-To ensure development stability, the following classic stack is recommended:
-
-- **Frontend:** **React.js** + **Material UI (MUI)**.
-  - *Reason:* MUI provides very mature dashboard components (such as progress bars and calendars), allowing rapid development of a polished “study assistant” interface.
-- **Backend:** **Node.js (Express)**.
-  - *Reason:* Extremely fast response for frequent task state updates (e.g., dragging tasks from “To Do” to “Done”).
-- **Database:** **MongoDB** (or PostgreSQL).
-  - *Reason:* Task descriptions (Notes) in study plans often vary in length; the flexibility of NoSQL is better suited for storing such unstructured text.
-- **Containerization (DevOps):** **Docker** + **Docker Compose**.
-
-------
-
-## 3. Functional Modules
-
-### A. Kanban (DashBoard) Board Module
-
-- **State Flow:** Tasks are divided into `To Do`, `In Progress`, `Review`, and `Done`.
-- **Drag-and-Drop Feature:** Implement visual drag-and-drop for tasks between different states.
-
-### B. Task Details and Priority
-
-- **Attribute Definition:** Each task includes a title, deadline, associated subjects, and priority (High/Medium/Low).
-- **Subtask Checklist:** Large tasks (e.g., Assignment 1) can be broken down into multiple smaller steps.
-
-### C. Focus Mode and Statistics
-
-- **Pomodoro Timer:** A built-in web countdown timer that automatically updates the task’s “total time spent” after each focus session.
-- **Weekly Report Statistics:** Automatically generates a bar chart showing the number of tasks completed during the week, illustrating learning efficiency.
-- **AI-Powered Insights**: Integrated with **LLM APIs** to analyze historical learning patterns. By examining data such as peak focus hours and common procrastination points, the AI generates personalized suggestions, such as "Allocate high-complexity tasks to morning hours" or "Increase focus on certain subjects to stay on track."
-
-### D. Module Organizer
-
-- **Course Classification:** Users can create different module categories (e.g., IT5007, CS5242) and assign different theme colors to each module.
-
-------
-
-## 4. System Architecture Diagram (Architecture)
-
-![image-20260312134236731](./IT5007%20Project%20Initial%20Proposal.assets/image-20260312134236731.png)
-
-## 5. Database Design Suggestions (Database Schema)
-
-| **Entity**   | **Key Fields**                                    | **Notes**               |
-| ------------ | ------------------------------------------------- | ----------------------- |
-| **User**     | username, email, password                         | User account            |
-| **Task**     | user_id, title, status, priority, ddl, time_spent | Core task data          |
-| **Module**   | user_id, name, color_code                         | Course/project category |
-| **TimerLog** | task_id, start_time, duration                     | Focus time records      |
+根目录的 `server/` 与 `public/`、`src/` 是早期静态页面/编译产物相关代码；当前主流程以 `frontend/` + `backend/` + `docker-compose.yml` 为准。

@@ -4,11 +4,14 @@ node_modules/
 .pnp.js
 
 # --- Testing ---
-/coverage
+coverage/
 
 # --- Production/Build ---
 /frontend/dist
 /backend/dist
+.vite/
+*.tsbuildinfo
+.eslintcache
 *.pyc
 __pycache__/
 
@@ -20,6 +23,8 @@ __pycache__/
 
 # --- OS / IDE ---
 .DS_Store
+.AppleDouble
+.LSOverride
 .vscode/
 .idea/
 *.swp
@@ -35,6 +40,10 @@ yarn-error.log*
 
 # --- Docker & DB ---
 /data/
+docker-compose.override.yml
+
+# --- Hosting ---
+.vercel/
 
 # ignored directories
 /external_files/

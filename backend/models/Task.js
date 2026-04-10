@@ -32,6 +32,25 @@ const taskSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Module',
     },
+    moduleName: {
+      type: String,
+      default: '',
+    },
+
+    source: {
+      type: {
+        type: String,
+        enum: ['canvas'],
+      },
+      courseId: {
+        type: String,
+        default: '',
+      },
+      assignmentId: {
+        type: String,
+        default: '',
+      },
+    },
     timeSpent: {
       type: Number,
       default: 0, // in minutes
@@ -46,8 +65,17 @@ const taskSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+
+    unlockAt: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );
+
+taskSchema.index(
+  { userId: 1, 'source.type': 1, 'source.courseId': 1, 'source.assignmentId': 1 },
+  { unique: true, sparse: true }
+)
 
 module.exports = mongoose.model('Task', taskSchema);

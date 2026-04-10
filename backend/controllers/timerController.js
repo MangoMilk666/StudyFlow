@@ -4,7 +4,8 @@ const Task = require('../models/Task');
 // Start timer
 exports.startTimer = async (req, res) => {
   try {
-    const { taskId, userId } = req.body;
+    const { taskId } = req.body;
+    const userId = req.user?.userId
 
     // Timer session started (tracked on frontend)
     res.json({ 
@@ -21,7 +22,8 @@ exports.startTimer = async (req, res) => {
 // Stop timer and save log
 exports.stopTimer = async (req, res) => {
   try {
-    const { taskId, userId, duration } = req.body; // duration in minutes
+    const { taskId, duration } = req.body; // duration in minutes
+    const userId = req.user?.userId
 
     const timerLog = new TimerLog({
       taskId,
@@ -37,6 +39,9 @@ exports.stopTimer = async (req, res) => {
     // Update task's total time spent
     const task = await Task.findById(taskId);
     if (task) {
+      if (task.userId?.toString() !== String(userId)) {
+        return res.status(403).json({ error: 'Forbidden' })
+      }
       task.timeSpent = (task.timeSpent || 0) + duration;
       await task.save();
     }
@@ -55,7 +60,8 @@ exports.stopTimer = async (req, res) => {
 exports.getTimerLogs = async (req, res) => {
   try {
     const { taskId } = req.params;
-    const logs = await TimerLog.find({ taskId }).sort({ sessionDate: -1 });
+    const userId = req.user?.userId
+    const logs = await TimerLog.find({ taskId, userId }).sort({ sessionDate: -1 });
     res.json(logs);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -65,7 +71,7 @@ exports.getTimerLogs = async (req, res) => {
 // Get weekly statistics
 exports.getWeeklyStats = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const userId = req.user?.userId
 
     // Get logs from past 7 days
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);

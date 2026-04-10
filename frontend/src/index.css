@@ -77,7 +77,35 @@ a {
   flex-direction: column;
   gap: clamp(10px, 1.2vw, 16px);
   overflow: hidden;
+  position: relative;
   box-shadow: 12px 12px 0 rgba(0, 0, 0, 0.05);
+}
+
+.sf-canvas-sync-fab {
+  position: absolute;
+  right: clamp(16px, 2.2vw, 30px);
+  bottom: clamp(16px, 2.2vw, 30px);
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: white;
+  box-shadow: 4px 4px 0 var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+}
+
+.sf-canvas-sync-fab:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.sf-canvas-sync-fab[disabled] {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 /* 内容区可滚动，保证外部框线大小在页面间统一 */
@@ -118,6 +146,12 @@ a {
   text-decoration: none;
   background: white;
   transition: all 0.12s;
+  width: clamp(110px, 14vw, 160px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .nav-item:hover {
@@ -134,6 +168,34 @@ a {
     rgba(0, 150, 255, 0.12) 6px,
     rgba(0, 150, 255, 0.12) 12px
   );
+}
+
+.sf-settings-fab {
+  position: fixed;
+  right: calc(var(--sf-frame-margin) + 6px);
+  bottom: calc(var(--sf-frame-margin) + 6px);
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  border: 3px solid var(--ink);
+  background: white;
+  box-shadow: 6px 6px 0 var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.sf-settings-fab:active {
+  transform: translate(2px, 2px);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.sf-settings-fab-icon {
+  width: 26px;
+  height: 26px;
+  color: var(--ink);
 }
 
 .btn {

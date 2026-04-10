@@ -1,26 +1,32 @@
 import { NavLink } from 'react-router-dom'
 
+import SettingsFab from './SettingsFab'
+import { useI18n } from '../i18n'
+
 const NAV_ITEMS = [
-  { to: '/', label: 'Home' },
-  { to: '/dashboard', label: 'Dashboard' },
-  { to: '/tasks', label: 'Tasks' },
-  { to: '/focus', label: 'Focus' },
-  { to: '/settings', label: 'Settings' },
+  { to: '/', labelKey: 'nav.home' },
+  { to: '/dashboard', labelKey: 'nav.dashboard' },
+  { to: '/tasks', labelKey: 'nav.tasks' },
+  { to: '/focus', labelKey: 'nav.focus' },
 ]
 
 export default function TopNav() {
+  const { t } = useI18n()
+
   return (
-    <nav className="nav-bar" aria-label="Top navigation">
-      {NAV_ITEMS.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-        >
-          {item.label}
-        </NavLink>
-      ))}
-    </nav>
+    <>
+      <nav className="nav-bar" aria-label="Top navigation">
+        {NAV_ITEMS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+          >
+            {t(item.labelKey)}
+          </NavLink>
+        ))}
+      </nav>
+      <SettingsFab />
+    </>
   )
 }
-

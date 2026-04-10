@@ -1,9 +1,13 @@
 import { useNavigate } from 'react-router-dom'
 import AppleIcon from '../components/AppleIcon'
 import TopNav from '../components/TopNav'
+import { useAuth } from '../auth'
+import { useI18n } from '../i18n'
 
 export default function HomePage() {
   const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
+  const { t } = useI18n()
 
   return (
     <div className="sf-page">
@@ -23,7 +27,7 @@ export default function HomePage() {
             }}
           >
             <h1 style={{ fontSize: 48, margin: '0 0 18px 0', letterSpacing: 1 }}>
-              Welcome To StudyFlow!
+              {t('home.welcome')}
             </h1>
             <AppleIcon />
 
@@ -34,16 +38,18 @@ export default function HomePage() {
                 onClick={() => navigate('/dashboard')}
                 style={{ background: 'var(--btn-add-bg)' }}
               >
-                进入看板
+                {t('home.enterBoard')}
               </button>
-              <button
-                className="btn"
-                type="button"
-                onClick={() => navigate('/auth')}
-                style={{ background: 'white' }}
-              >
-                登录 / 注册
-              </button>
+              {!isAuthenticated ? (
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => navigate('/auth')}
+                  style={{ background: 'white' }}
+                >
+                  {t('home.auth')}
+                </button>
+              ) : null}
             </div>
           </main>
         </div>

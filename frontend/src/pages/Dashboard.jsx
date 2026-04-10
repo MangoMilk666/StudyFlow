@@ -1,8 +1,11 @@
 import TopNav from '../components/TopNav'
-import { useTasks } from '../hooks/useData'
 import { useApiHealth } from '../hooks/useApiHealth'
+import { useI18n } from '../i18n'
+import { useUnifiedTasks } from '../hooks/useUnifiedTasks'
 
 function Panel({ title, color, tasks, onTaskClick }) {
+  const { t: tr } = useI18n()
+
   return (
     <section
       style={{
@@ -16,11 +19,11 @@ function Panel({ title, color, tasks, onTaskClick }) {
       <h2 style={{ textAlign: 'center', fontSize: 24, margin: '0 0 18px 0' }}>{title}</h2>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, justifyContent: 'flex-start' }}>
         {tasks.length ? (
-          tasks.map((t) => (
+          tasks.map((task) => (
             <button
-              key={t.id}
+              key={task.id}
               type="button"
-              onClick={() => onTaskClick(t.id)}
+              onClick={() => onTaskClick(task.id)}
               style={{
                 background: 'white',
                 border: `2px solid var(--ink)`,
@@ -31,13 +34,13 @@ function Panel({ title, color, tasks, onTaskClick }) {
                 fontWeight: 'bold',
                 cursor: 'pointer',
               }}
-              title="点击切换到下一个状态（演示用）"
+              title={tr('dashboard.clickHint')}
             >
-              {t.name}
+              {task.name}
             </button>
           ))
         ) : (
-          <div style={{ opacity: 0.6, fontWeight: 'bold' }}>暂无任务</div>
+          <div style={{ opacity: 0.6, fontWeight: 'bold' }}>{tr('dashboard.noTasks')}</div>
         )}
       </div>
     </section>
@@ -45,8 +48,9 @@ function Panel({ title, color, tasks, onTaskClick }) {
 }
 
 export default function Dashboard() {
-  const { tasks, cycleStatus } = useTasks('demo_user')
+  const { tasks, cycleStatus } = useUnifiedTasks()
   const apiHealth = useApiHealth()
+  const { t: tr } = useI18n()
 
   const byStatus = {
     todo: tasks.filter((t) => t.status === 'todo'),
@@ -69,22 +73,22 @@ export default function Dashboard() {
               gap: 30,
             }}
           >
-            <Panel title="To Do" color="var(--panel-todo)" tasks={byStatus.todo} onTaskClick={cycleStatus} />
+            <Panel title={tr('dashboard.todo')} color="var(--panel-todo)" tasks={byStatus.todo} onTaskClick={cycleStatus} />
             <Panel
-              title="In Progress"
+              title={tr('dashboard.inProgress')}
               color="var(--panel-progress)"
               tasks={byStatus.in_progress}
               onTaskClick={cycleStatus}
             />
-            <Panel title="Review" color="var(--panel-review)" tasks={byStatus.review} onTaskClick={cycleStatus} />
-            <Panel title="Done" color="var(--panel-done)" tasks={byStatus.done} onTaskClick={cycleStatus} />
+            <Panel title={tr('dashboard.review')} color="var(--panel-review)" tasks={byStatus.review} onTaskClick={cycleStatus} />
+            <Panel title={tr('dashboard.done')} color="var(--panel-done)" tasks={byStatus.done} onTaskClick={cycleStatus} />
           </main>
 
           <div style={{ marginTop: 18, fontSize: 12, opacity: 0.8 }}>
-            备注：这是“页面骨架 + 演示交互”。后续你可以把 task 列表从本地 mock 切到 `/api/tasks`。
+            {tr('dashboard.note')}
             {apiHealth.status === 'ok'
-              ? ` 后端：已连接（${apiHealth.data?.status || 'unknown'}）`
-              : ' 后端：未连接（可先用 MOCK_MODE=true 启动后端）'}
+              ? ` ${tr('dashboard.backendOk', apiHealth.data?.status)}`
+              : ` ${tr('dashboard.backendErr')}`}
           </div>
         </div>
       </div>

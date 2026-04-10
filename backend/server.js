@@ -19,6 +19,7 @@ if (mockMode) {
   const taskRoutes = require('./routes/tasks')
   const moduleRoutes = require('./routes/modules')
   const timerRoutes = require('./routes/timer')
+  const canvasRoutes = require('./routes/canvas')
 
   const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/studyflow'
   mongoose
@@ -39,6 +40,7 @@ if (mockMode) {
   app.use('/api/tasks', taskRoutes)
   app.use('/api/modules', moduleRoutes)
   app.use('/api/timer', timerRoutes)
+  app.use('/api/canvas', canvasRoutes)
 }
 
 app.use((err, req, res, next) => {

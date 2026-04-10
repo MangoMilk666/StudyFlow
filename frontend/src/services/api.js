@@ -1,6 +1,7 @@
 import axios from 'axios'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+const LS_TOKEN_KEY = 'sf_token_v1'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -12,11 +13,21 @@ const apiClient = axios.create({
 // Add token to requests if available
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const token = localStorage.getItem(LS_TOKEN_KEY)
+
+    const url = String(config.url || '')
+    const isAuth = url.startsWith('/auth/')
+    const isHealth = url === '/health'
+
+    if (!token && !isAuth && !isHealth) {
+      return Promise.reject(new Error('AUTH_REQUIRED'))
     }
-    return config;
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+
+    return config
   },
   (error) => Promise.reject(error)
 );
@@ -27,11 +38,12 @@ export const authAPI = {
     apiClient.post('/auth/register', { username, email, password }),
   login: (email, password) =>
     apiClient.post('/auth/login', { email, password }),
+  updateEmail: (email) => apiClient.patch('/auth/email', { email }),
 };
 
 // Task API
 export const taskAPI = {
-  getAllTasks: (userId) => apiClient.get('/tasks', { params: { userId } }),
+  getAllTasks: () => apiClient.get('/tasks'),
   createTask: (taskData) => apiClient.post('/tasks', taskData),
   getTaskById: (id) => apiClient.get(`/tasks/${id}`),
   updateTask: (id, updates) => apiClient.put(`/tasks/${id}`, updates),
@@ -43,7 +55,7 @@ export const taskAPI = {
 
 // Module API
 export const moduleAPI = {
-  getAllModules: (userId) => apiClient.get('/modules', { params: { userId } }),
+  getAllModules: () => apiClient.get('/modules'),
   createModule: (moduleData) => apiClient.post('/modules', moduleData),
   updateModule: (id, updates) => apiClient.put(`/modules/${id}`, updates),
   deleteModule: (id) => apiClient.delete(`/modules/${id}`),
@@ -58,5 +70,10 @@ export const timerAPI = {
   getTimerLogs: (taskId) => apiClient.get(`/timer/logs/${taskId}`),
   getWeeklyStats: (userId) => apiClient.get(`/timer/weekly-stats/${userId}`),
 };
+
+export const canvasAPI = {
+  getCourses: () => apiClient.get('/canvas/courses'),
+  syncAssignments: (courseIds) => apiClient.post('/canvas/sync-assignments', { courseIds }),
+}
 
 export default apiClient;
