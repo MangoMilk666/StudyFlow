@@ -198,7 +198,7 @@ NODE_ENV=production
 
 **Frontend (.env)**
 ```
-VITE_API_URL=http://localhost:5000/api
+VITE_API_BASE_URL=/api
 ```
 
 ## 🏃 Development Guide

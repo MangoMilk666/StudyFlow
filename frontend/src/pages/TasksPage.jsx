@@ -8,6 +8,7 @@ import { taskAPI } from '../services/api'
 import TaskModal from '../components/TaskModal'
 import syncIcon from '../assets/streamline-plump-color--synchronize-flat.svg'
 import { canvasAPI } from '../services/api'
+import CanvasImportModal from '../components/CanvasImportModal'
 
 function priorityClass(p) {
   if (p === 'H') return 'priority-h'
@@ -71,6 +72,12 @@ export default function TasksPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [syncing, setSyncing] = useState(false)
+  const [canvasOpen, setCanvasOpen] = useState(false)
+  const [courses, setCourses] = useState([])
+  const [loadingCourses, setLoadingCourses] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [previewAssignments, setPreviewAssignments] = useState([])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -197,19 +204,19 @@ export default function TasksPage() {
       return
     }
 
-    const confirmed = window.confirm(t('tasks.syncConfirm'))
-    if (!confirmed) return
-
     try {
       setSyncing(true)
-      await canvasAPI.syncAssignments([])
-      const refreshed = await taskAPI.getAllTasks()
-      setApiTasks(refreshed.data || [])
-      setNotice({ type: 'success', text: t('tasks.syncSuccess') })
+      setCanvasOpen(true)
+      setLoadingCourses(true)
+      const resp = await canvasAPI.getCourses()
+      setCourses(resp.data || [])
+      setPreviewAssignments([])
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || t('tasks.syncFailed')
       setNotice({ type: 'error', text: msg })
+      setCanvasOpen(false)
     } finally {
+      setLoadingCourses(false)
       setSyncing(false)
     }
   }
@@ -373,6 +380,51 @@ export default function TasksPage() {
         }}
         onSubmit={submitModal}
         t={t}
+      />
+
+      <CanvasImportModal
+        open={canvasOpen}
+        t={t}
+        courses={courses}
+        loadingCourses={loadingCourses}
+        onClose={() => {
+          if (previewing || confirming) return
+          setCanvasOpen(false)
+          setPreviewAssignments([])
+        }}
+        onPreview={async (courseIds) => {
+          setNotice(null)
+          try {
+            setPreviewing(true)
+            const resp = await canvasAPI.previewAssignments(courseIds)
+            setPreviewAssignments(resp.data?.assignments || [])
+          } catch (err) {
+            const msg = err?.response?.data?.error || err?.message || t('tasks.syncFailed')
+            setNotice({ type: 'error', text: msg })
+          } finally {
+            setPreviewing(false)
+          }
+        }}
+        previewing={previewing}
+        assignments={previewAssignments}
+        onConfirm={async (courseIds) => {
+          setNotice(null)
+          try {
+            setConfirming(true)
+            await canvasAPI.importAssignments(courseIds)
+            const refreshed = await taskAPI.getAllTasks()
+            setApiTasks(refreshed.data || [])
+            setNotice({ type: 'success', text: t('tasks.syncSuccess') })
+            setCanvasOpen(false)
+            setPreviewAssignments([])
+          } catch (err) {
+            const msg = err?.response?.data?.error || err?.message || t('tasks.syncFailed')
+            setNotice({ type: 'error', text: msg })
+          } finally {
+            setConfirming(false)
+          }
+        }}
+        confirming={confirming}
       />
     </div>
   )

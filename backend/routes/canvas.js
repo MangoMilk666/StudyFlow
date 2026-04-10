@@ -6,7 +6,8 @@ const canvasController = require('../controllers/canvasController')
 const router = express.Router()
 
 router.get('/courses', authRequired, canvasController.getCourses)
+router.post('/preview-assignments', authRequired, canvasController.previewAssignments)
+router.post('/import-assignments', authRequired, canvasController.importAssignments)
 router.post('/sync-assignments', authRequired, canvasController.syncAssignments)
 
 module.exports = router
-

@@ -73,6 +73,8 @@ export const timerAPI = {
 
 export const canvasAPI = {
   getCourses: () => apiClient.get('/canvas/courses'),
+  previewAssignments: (courseIds) => apiClient.post('/canvas/preview-assignments', { courseIds }),
+  importAssignments: (courseIds) => apiClient.post('/canvas/import-assignments', { courseIds }),
   syncAssignments: (courseIds) => apiClient.post('/canvas/sync-assignments', { courseIds }),
 }
 

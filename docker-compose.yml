@@ -31,6 +31,8 @@ services:
       - JWT_SECRET=studyflow_jwt_secret_key_2026
       - NODE_ENV=production
       - PORT=8000
+      - CANVAS_BASE_URL=${CANVAS_BASE_URL}
+      - CANVAS_TOKEN=${CANVAS_TOKEN}
     depends_on:
       database:
         condition: service_healthy
@@ -51,8 +53,6 @@ services:
     container_name: studyflow-frontend
     ports:
       - "5173:5173"
-    environment:
-      - VITE_API_URL=http://localhost:5000/api
     depends_on:
       - backend
     networks:

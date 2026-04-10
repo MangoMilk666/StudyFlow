@@ -8,6 +8,7 @@ const translations = {
       ok: 'OK',
       cancel: 'Cancel',
       save: 'Save',
+      loading: 'Loading...',
     },
     nav: {
       home: 'Home',
@@ -102,12 +103,23 @@ const translations = {
       syncFailed: 'Sync failed.',
       syncButton: 'Sync from Canvas',
     },
+
+    canvas: {
+      modalTitle: 'Canvas Import',
+      modalHint: 'Select courses, preview assignments, then confirm to import into Tasks.',
+      courseName: 'Course',
+      courseId: 'Course ID',
+      noCourses: 'No courses',
+      previewAssignments: 'Preview',
+      confirmImport: 'Confirm',
+    },
   },
   zh: {
     common: {
       ok: '确定',
       cancel: '取消',
       save: '保存',
+      loading: '加载中...',
     },
     nav: {
       home: '首页',
@@ -200,6 +212,16 @@ const translations = {
       syncSuccess: 'Canvas 作业已同步。',
       syncFailed: '同步失败。',
       syncButton: '同步 Canvas 作业',
+    },
+
+    canvas: {
+      modalTitle: 'Canvas 导入',
+      modalHint: '请选择课程并预览作业，点击确认后才会导入到任务列表。',
+      courseName: '课程',
+      courseId: '课程ID',
+      noCourses: '暂无课程',
+      previewAssignments: '预览',
+      confirmImport: '确认',
     },
   },
 }

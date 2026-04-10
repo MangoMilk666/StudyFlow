@@ -20,6 +20,12 @@ function normalizePriority() {
   return 'Medium'
 }
 
+function pickCourses(allCourses, courseIds) {
+  const ids = Array.isArray(courseIds) ? courseIds.map(String) : []
+  if (!ids.length) return allCourses
+  return allCourses.filter((c) => ids.includes(String(c.id)))
+}
+
 exports.getCourses = async (req, res) => {
   try {
     const client = createCanvasClient()
@@ -48,9 +54,7 @@ exports.syncAssignments = async (req, res) => {
     const client = createCanvasClient()
 
     const allCourses = await listCourses(client)
-    const selectedCourses = Array.isArray(courseIds) && courseIds.length
-      ? allCourses.filter((c) => courseIds.map(String).includes(String(c.id)))
-      : allCourses
+    const selectedCourses = pickCourses(allCourses, courseIds)
 
     let created = 0
     let updated = 0
@@ -120,3 +124,47 @@ exports.syncAssignments = async (req, res) => {
   }
 }
 
+exports.previewAssignments = async (req, res) => {
+  try {
+    const userId = req.user?.userId
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' })
+
+    const { courseIds } = req.body || {}
+    const client = createCanvasClient()
+
+    const allCourses = await listCourses(client)
+    const selectedCourses = pickCourses(allCourses, courseIds)
+
+    const out = []
+    for (const course of selectedCourses) {
+      const assignments = await listAssignments(client, course.id)
+      for (const a of assignments) {
+        const assignmentId = String(a.id || '')
+        const courseId = String(course.id || '')
+        const title = String(a.name || '').trim()
+        if (!assignmentId || !courseId || !title) continue
+
+        out.push({
+          courseId,
+          courseName: String(course.name || ''),
+          assignmentId,
+          name: title,
+          due_at: a.due_at || null,
+          unlock_at: a.unlock_at || null,
+        })
+      }
+    }
+
+    return res.json({ ok: true, assignments: out })
+  } catch (err) {
+    if (err.code === 'CANVAS_NOT_CONFIGURED') {
+      return res.status(500).json({ error: err.message })
+    }
+    if (err.response?.status) {
+      return res.status(502).json({ error: `Canvas API error: HTTP ${err.response.status}` })
+    }
+    return res.status(500).json({ error: err.message })
+  }
+}
+
+exports.importAssignments = exports.syncAssignments

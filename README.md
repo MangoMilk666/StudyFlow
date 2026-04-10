@@ -84,7 +84,7 @@ npm start  # http://localhost:8000
 npm run dev:mock  # http://localhost:8000
 ```
 
-Environment variables example: see `backend/.env.example`.
+Environment variables example: see root `.env.example` (Docker Compose reads root `.env`).
 
 ---
 
