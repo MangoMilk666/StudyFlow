@@ -3,8 +3,9 @@ import TopNav from '../components/TopNav'
 import { useApiHealth } from '../hooks/useApiHealth'
 import { useI18n } from '../i18n'
 import { useUnifiedTasks } from '../hooks/useUnifiedTasks'
+import { statsAPI } from '../services/api'
 
-function Panel({ title, color, tasks, onTaskClick }) {
+function Panel({ title, color, tasks, onTaskClick, pomodoroCounts, hoveredTaskId, onHoverPomodoro, onLeavePomodoro }) {
   const { t: tr } = useI18n()
 
   return (
@@ -34,10 +35,37 @@ function Panel({ title, color, tasks, onTaskClick }) {
                 textAlign: 'center',
                 fontWeight: 'bold',
                 cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
               }}
               title={tr('dashboard.clickHint')}
             >
-              {task.name}
+              <span style={{ flex: '1 1 auto', textAlign: 'left' }}>{task.name}</span>
+              <span
+                role="button"
+                tabIndex={0}
+                onMouseEnter={() => onHoverPomodoro(task.id)}
+                onMouseLeave={() => onLeavePomodoro(task.id)}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  flex: '0 0 auto',
+                  border: `2px solid var(--ink)`,
+                  borderRadius: 999,
+                  padding: '6px 10px',
+                  background: 'white',
+                  fontWeight: 'bold',
+                  fontSize: 12,
+                  opacity: hoveredTaskId === task.id ? 1 : 0.6,
+                  userSelect: 'none',
+                  whiteSpace: 'nowrap',
+                }}
+                title={hoveredTaskId === task.id ? undefined : '🍅'}
+              >
+                {hoveredTaskId === task.id ? `🍅 x${Number(pomodoroCounts?.[task.id] || 0)}` : '🍅'}
+              </span>
             </button>
           ))
         ) : (
@@ -49,10 +77,12 @@ function Panel({ title, color, tasks, onTaskClick }) {
 }
 
 export default function Dashboard() {
-  const { tasks, cycleStatus } = useUnifiedTasks()
+  const { tasks, cycleStatus, isAuthenticated } = useUnifiedTasks()
   const apiHealth = useApiHealth()
   const { t: tr } = useI18n()
   const [authFlash, setAuthFlash] = useState(null)
+  const [pomodoroCounts, setPomodoroCounts] = useState({})
+  const [hoveredTaskId, setHoveredTaskId] = useState(null)
 
   useEffect(() => {
     try {
@@ -73,6 +103,23 @@ export default function Dashboard() {
     done: tasks.filter((t) => t.status === 'done'),
   }
 
+  const onHoverPomodoro = (taskId) => {
+    setHoveredTaskId(taskId)
+    if (!isAuthenticated) return
+    if (pomodoroCounts?.[taskId] != null) return
+    statsAPI
+      .getTaskStats(taskId)
+      .then((resp) => {
+        const v = Number(resp?.data?.pomodorosCompleted || 0)
+        setPomodoroCounts((prev) => ({ ...prev, [taskId]: Number.isFinite(v) ? v : 0 }))
+      })
+      .catch(() => setPomodoroCounts((prev) => ({ ...prev, [taskId]: 0 })))
+  }
+
+  const onLeavePomodoro = (taskId) => {
+    setHoveredTaskId((prev) => (prev === taskId ? null : prev))
+  }
+
   return (
     <div className="sf-page">
       <div className="main-frame">
@@ -87,15 +134,46 @@ export default function Dashboard() {
               gap: 30,
             }}
           >
-            <Panel title={tr('dashboard.todo')} color="var(--panel-todo)" tasks={byStatus.todo} onTaskClick={cycleStatus} />
+            <Panel
+              title={tr('dashboard.todo')}
+              color="var(--panel-todo)"
+              tasks={byStatus.todo}
+              onTaskClick={cycleStatus}
+              pomodoroCounts={pomodoroCounts}
+              hoveredTaskId={hoveredTaskId}
+              onHoverPomodoro={onHoverPomodoro}
+              onLeavePomodoro={onLeavePomodoro}
+            />
             <Panel
               title={tr('dashboard.inProgress')}
               color="var(--panel-progress)"
               tasks={byStatus.in_progress}
               onTaskClick={cycleStatus}
+              pomodoroCounts={pomodoroCounts}
+              hoveredTaskId={hoveredTaskId}
+              onHoverPomodoro={onHoverPomodoro}
+              onLeavePomodoro={onLeavePomodoro}
             />
-            <Panel title={tr('dashboard.review')} color="var(--panel-review)" tasks={byStatus.review} onTaskClick={cycleStatus} />
-            <Panel title={tr('dashboard.done')} color="var(--panel-done)" tasks={byStatus.done} onTaskClick={cycleStatus} />
+            <Panel
+              title={tr('dashboard.review')}
+              color="var(--panel-review)"
+              tasks={byStatus.review}
+              onTaskClick={cycleStatus}
+              pomodoroCounts={pomodoroCounts}
+              hoveredTaskId={hoveredTaskId}
+              onHoverPomodoro={onHoverPomodoro}
+              onLeavePomodoro={onLeavePomodoro}
+            />
+            <Panel
+              title={tr('dashboard.done')}
+              color="var(--panel-done)"
+              tasks={byStatus.done}
+              onTaskClick={cycleStatus}
+              pomodoroCounts={pomodoroCounts}
+              hoveredTaskId={hoveredTaskId}
+              onHoverPomodoro={onHoverPomodoro}
+              onLeavePomodoro={onLeavePomodoro}
+            />
           </main>
 
           <div style={{ marginTop: 18, fontSize: 12, opacity: 0.8 }}>

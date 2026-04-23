@@ -181,17 +181,24 @@ export default function StatsPage() {
                   }}
                 >
                   <Panel title={t('stats.panelCompletion')} color="var(--panel-done)">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={completionData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
-                          {completionData.map((_, idx) => (
-                            <Cell key={String(idx)} fill={completionColors[idx % completionColors.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ flex: '1 1 auto', minHeight: 0 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={completionData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
+                              {completionData.map((_, idx) => (
+                                <Cell key={String(idx)} fill={completionColors[idx % completionColors.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div style={{ marginTop: 8, textAlign: 'center', fontWeight: 'bold', fontSize: 12 }}>
+                        🍅 x{Number(data?.pomodorosCompleted || 0)} · {Number(data?.focusMinutes || 0)} {t('stats.minutes')}
+                      </div>
+                    </div>
                   </Panel>
 
                   <Panel title={t('stats.panelModuleTime')} color="var(--panel-progress)">

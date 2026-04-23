@@ -63,16 +63,15 @@ export const moduleAPI = {
 
 // Timer API
 export const timerAPI = {
-  startTimer: (taskId, userId) =>
-    apiClient.post('/timer/start', { taskId, userId }),
-  stopTimer: (taskId, userId, duration) =>
-    apiClient.post('/timer/stop', { taskId, userId, duration }),
+  startTimer: (taskId) => apiClient.post('/timer/start', { taskId }),
+  stopTimer: (taskId, duration, status) => apiClient.post('/timer/stop', { taskId, duration, status }),
   getTimerLogs: (taskId) => apiClient.get(`/timer/logs/${taskId}`),
   getWeeklyStats: (userId) => apiClient.get(`/timer/weekly-stats/${userId}`),
 };
 
 export const statsAPI = {
   getSummary: (range) => apiClient.get(`/stats/summary?range=${encodeURIComponent(range || 'week')}`),
+  getTaskStats: (taskId) => apiClient.get(`/stats/task/${encodeURIComponent(taskId)}`),
 }
 
 export const canvasAPI = {

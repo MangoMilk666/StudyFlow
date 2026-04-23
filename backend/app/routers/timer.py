@@ -4,12 +4,14 @@ from fastapi import APIRouter, Body, Depends
 
 from app.deps import get_current_user
 from app.errors import ApiError
-from app.models.timer import TimerStartRequest, TimerStopRequest
+from app.models.timer import TimerLogOut, TimerStartRequest, TimerStopRequest
 from app.services.db import MongoNotReadyError, get_db_checked
 from app.utils.mongo import oid_str, serialize_datetime, to_object_id
 
 
 router = APIRouter()
+
+POMODORO_SECONDS = 25 * 60
 
 
 @router.post("/start")
@@ -53,14 +55,21 @@ async def stop_timer(
     if oid_str(task.get("userId")) != current_user["userId"]:
         raise ApiError(403, "Forbidden")
 
-    duration = float(payload.duration)
+    duration = int(payload.duration)
+    if duration < 0:
+        raise ApiError(400, "duration must be >= 0")
+    if duration > POMODORO_SECONDS:
+        duration = POMODORO_SECONDS
+
+    status = "completed" if duration >= POMODORO_SECONDS else "interrupted"
     end_time = datetime.now(timezone.utc)
-    start_time = end_time - timedelta(minutes=duration)
+    start_time = end_time - timedelta(seconds=duration)
     now = end_time
     timer_doc = {
         "taskId": to_object_id(payload.taskId),
         "userId": user_oid,
         "duration": duration,
+        "status": status,
         "startTime": start_time,
         "endTime": end_time,
         "sessionDate": now,
@@ -71,7 +80,7 @@ async def stop_timer(
     timer_log = await db.timerlogs.find_one({"_id": result.inserted_id})
     timer_log = timer_log or {**timer_doc, "_id": result.inserted_id}
 
-    new_time_spent = float(task.get("timeSpent") or 0) + duration
+    new_time_spent = float(task.get("timeSpent") or 0) + (float(duration) / 60.0)
     await db.tasks.update_one(
         {"_id": to_object_id(payload.taskId)},
         {"$set": {"timeSpent": new_time_spent, "updatedAt": now}},
@@ -79,18 +88,19 @@ async def stop_timer(
 
     return {
         "message": "Timer session saved",
-        "timerLog": {
-            **{k: v for k, v in timer_log.items() if k not in {"_id", "taskId", "userId"}},
-            "_id": oid_str(timer_log.get("_id")),
-            "taskId": oid_str(timer_log.get("taskId")),
-            "userId": oid_str(timer_log.get("userId")),
-            "startTime": serialize_datetime(timer_log.get("startTime")),
-            "endTime": serialize_datetime(timer_log.get("endTime")),
-            "sessionDate": serialize_datetime(timer_log.get("sessionDate")),
-            "createdAt": serialize_datetime(timer_log.get("createdAt")),
-            "updatedAt": serialize_datetime(timer_log.get("updatedAt")),
-        },
-        "totalTimeSpent": new_time_spent,
+        "timerLog": TimerLogOut(
+            id=oid_str(timer_log.get("_id")),
+            taskId=oid_str(timer_log.get("taskId")),
+            userId=oid_str(timer_log.get("userId")),
+            duration=int(timer_log.get("duration") or 0),
+            status=str(timer_log.get("status") or ""),
+            startTime=serialize_datetime(timer_log.get("startTime")),
+            endTime=serialize_datetime(timer_log.get("endTime")),
+            sessionDate=serialize_datetime(timer_log.get("sessionDate")),
+            createdAt=serialize_datetime(timer_log.get("createdAt")),
+            updatedAt=serialize_datetime(timer_log.get("updatedAt")),
+        ).model_dump(by_alias=True),
+        "totalTimeSpent": float(new_time_spent),
     }
 
 
@@ -111,17 +121,18 @@ async def get_timer_logs(taskId: str, current_user: dict = Depends(get_current_u
     out = []
     for d in docs:
         out.append(
-            {
-                **{k: v for k, v in d.items() if k not in {"_id", "taskId", "userId"}},
-                "_id": oid_str(d.get("_id")),
-                "taskId": oid_str(d.get("taskId")),
-                "userId": oid_str(d.get("userId")),
-                "startTime": serialize_datetime(d.get("startTime")),
-                "endTime": serialize_datetime(d.get("endTime")),
-                "sessionDate": serialize_datetime(d.get("sessionDate")),
-                "createdAt": serialize_datetime(d.get("createdAt")),
-                "updatedAt": serialize_datetime(d.get("updatedAt")),
-            }
+            TimerLogOut(
+                id=oid_str(d.get("_id")),
+                taskId=oid_str(d.get("taskId")),
+                userId=oid_str(d.get("userId")),
+                duration=int(d.get("duration") or 0),
+                status=str(d.get("status") or ""),
+                startTime=serialize_datetime(d.get("startTime")),
+                endTime=serialize_datetime(d.get("endTime")),
+                sessionDate=serialize_datetime(d.get("sessionDate")),
+                createdAt=serialize_datetime(d.get("createdAt")),
+                updatedAt=serialize_datetime(d.get("updatedAt")),
+            ).model_dump(by_alias=True)
         )
     return out
 

@@ -64,6 +64,24 @@ async def get_stats_summary(
     done = await db.tasks.count_documents({"userId": user_oid, "status": {"$in": ["Done", "done"]}})
     undone = max(int(total) - int(done), 0)
 
+    focus_agg = await db.timerlogs.aggregate(
+        [
+            {"$match": {"userId": user_oid, "status": "completed"}},
+            {
+                "$addFields": {
+                    "sessionDateSafe": {
+                        "$convert": {"input": "$sessionDate", "to": "date", "onError": {"$toDate": "$_id"}, "onNull": {"$toDate": "$_id"}}
+                    },
+                    "durationSafe": {"$convert": {"input": "$duration", "to": "int", "onError": 0, "onNull": 0}},
+                }
+            },
+            {"$match": {"sessionDateSafe": {"$gte": start_utc, "$lte": now_utc}}},
+            {"$group": {"_id": None, "seconds": {"$sum": "$durationSafe"}, "pomodoros": {"$sum": 1}}},
+        ]
+    ).to_list(length=1)
+    focus_seconds = int((focus_agg[0] if focus_agg else {}).get("seconds") or 0)
+    pomodoros_completed = int((focus_agg[0] if focus_agg else {}).get("pomodoros") or 0)
+
     try:
         module_agg = await db.tasks.aggregate(
             [
@@ -177,7 +195,47 @@ async def get_stats_summary(
         "total": int(total),
         "done": int(done),
         "undone": int(undone),
+        "focusSeconds": focus_seconds,
+        "focusMinutes": int(focus_seconds // 60),
+        "pomodorosCompleted": pomodoros_completed,
         "moduleTimeSpent": module_time_spent,
         "topTasksByTime": top_tasks_by_time,
         "trend": trend,
+    }
+
+
+@router.get("/task/{taskId}")
+async def get_task_stats(taskId: str, current_user: dict = Depends(get_current_user)):
+    try:
+        db = await get_db_checked()
+    except MongoNotReadyError:
+        raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+
+    user_oid = to_object_id(current_user["userId"])
+    task_oid = to_object_id(taskId)
+    task = await db.tasks.find_one({"_id": task_oid})
+    if not task:
+        raise ApiError(404, "Task not found")
+    if oid_str(task.get("userId")) != current_user["userId"]:
+        raise ApiError(403, "Forbidden")
+
+    agg = await db.timerlogs.aggregate(
+        [
+            {"$match": {"userId": user_oid, "taskId": task_oid, "status": "completed"}},
+            {
+                "$addFields": {
+                    "durationSafe": {"$convert": {"input": "$duration", "to": "int", "onError": 0, "onNull": 0}}
+                }
+            },
+            {"$group": {"_id": None, "seconds": {"$sum": "$durationSafe"}, "pomodoros": {"$sum": 1}}},
+        ]
+    ).to_list(length=1)
+
+    total_seconds = int((agg[0] if agg else {}).get("seconds") or 0)
+    pomodoros = int((agg[0] if agg else {}).get("pomodoros") or 0)
+    return {
+        "taskId": taskId,
+        "totalSeconds": total_seconds,
+        "totalMinutes": int(total_seconds // 60),
+        "pomodorosCompleted": pomodoros,
     }

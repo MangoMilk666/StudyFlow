@@ -1,7 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import TopNav from '../components/TopNav'
 import { useI18n } from '../i18n'
 import { useUnifiedTasks } from '../hooks/useUnifiedTasks'
+import { useAuth } from '../auth'
+import { statsAPI, taskAPI, timerAPI } from '../services/api'
+
+const LS_FOCUS_TIMER_KEY = 'sf_focus_timer_v1'
+const DEFAULT_SECONDS = 25 * 60
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60)
@@ -10,42 +15,169 @@ function formatTime(seconds) {
 }
 
 export default function FocusPage() {
-  const { tasks } = useUnifiedTasks()
+  const { tasks, refresh, isAuthenticated } = useUnifiedTasks()
+  useAuth()
   const { t } = useI18n()
 
   const [currentTaskId, setCurrentTaskId] = useState('')
-  const [nextTaskId, setNextTaskId] = useState('')
+
+  const [timeLeft, setTimeLeft] = useState(DEFAULT_SECONDS)
+  const [isRunning, setIsRunning] = useState(false)
+  const [hasStarted, setHasStarted] = useState(false)
+  const [notice, setNotice] = useState(null)
+  const [resultText, setResultText] = useState('')
+  const [hydrated, setHydrated] = useState(false)
+  const runStartMsRef = useRef(null)
+  const runBaseLeftRef = useRef(DEFAULT_SECONDS)
+  const stopOnceRef = useRef(false)
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_FOCUS_TIMER_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object') return
+
+      const savedTimeLeft = Number(parsed.timeLeft)
+      const savedRunning = !!parsed.isRunning
+      const savedHasStarted = !!parsed.hasStarted
+      const savedUpdatedAt = Number(parsed.updatedAtMs)
+
+      const safeTimeLeft = Number.isFinite(savedTimeLeft) ? Math.max(0, Math.floor(savedTimeLeft)) : DEFAULT_SECONDS
+      const nowMs = Date.now()
+      const elapsedSec =
+        savedRunning && Number.isFinite(savedUpdatedAt) ? Math.max(0, Math.floor((nowMs - savedUpdatedAt) / 1000)) : 0
+      const nextLeft = Math.max(0, safeTimeLeft - elapsedSec)
+
+      setTimeLeft(nextLeft)
+      setIsRunning(savedRunning && nextLeft > 0)
+      setHasStarted(savedHasStarted || savedRunning)
+
+      const c = String(parsed.currentTaskId || '')
+      if (c) setCurrentTaskId(c)
+
+      runBaseLeftRef.current = nextLeft
+      runStartMsRef.current = savedRunning ? nowMs : null
+    } catch {
+      // ignore
+    } finally {
+      setHydrated(true)
+    }
+  }, [])
 
   useEffect(() => {
     if (!tasks.length) return
-    if (!currentTaskId) setCurrentTaskId(tasks[0]?.id || '')
-    if (!nextTaskId) setNextTaskId(tasks[1]?.id || '')
-  }, [tasks, currentTaskId, nextTaskId])
+    if (currentTaskId) return
+    const selectable = tasks.filter((x) => x.status === 'todo' || x.status === 'in_progress')
+    if (!selectable.length) return
+    setCurrentTaskId(selectable[0]?.id || '')
+  }, [tasks, currentTaskId])
 
   const currentTask = useMemo(() => tasks.find((t) => t.id === currentTaskId), [tasks, currentTaskId])
-  const nextTask = useMemo(() => tasks.find((t) => t.id === nextTaskId), [tasks, nextTaskId])
-
-  const [timeLeft, setTimeLeft] = useState(25 * 60 - 1)
-  const [isRunning, setIsRunning] = useState(true)
+  const selectableTasks = useMemo(() => tasks.filter((x) => x.status === 'todo' || x.status === 'in_progress'), [tasks])
 
   useEffect(() => {
     if (!isRunning) return
 
     const id = window.setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 0) return 0
-        return t - 1
-      })
-    }, 1000)
+      const startMs = runStartMsRef.current
+      const baseLeft = runBaseLeftRef.current
+      if (!startMs) return
+      const elapsed = Math.max(0, Math.floor((Date.now() - startMs) / 1000))
+      const nextLeft = Math.max(0, baseLeft - elapsed)
+      setTimeLeft(nextLeft)
+    }, 250)
 
     return () => window.clearInterval(id)
   }, [isRunning])
 
   useEffect(() => {
+    if (!hydrated) return
+    try {
+      localStorage.setItem(
+        LS_FOCUS_TIMER_KEY,
+        JSON.stringify({
+          currentTaskId,
+          timeLeft,
+          isRunning,
+          hasStarted,
+          updatedAtMs: Date.now(),
+        })
+      )
+    } catch {
+      // ignore
+    }
+  }, [currentTaskId, hydrated, timeLeft, isRunning, hasStarted])
+
+  useEffect(() => {
+    if (!isRunning) return
     if (timeLeft !== 0) return
+    if (stopOnceRef.current) return
+    stopOnceRef.current = true
     setIsRunning(false)
-    window.alert(t('focus.timeUp'))
-  }, [timeLeft, t])
+
+    const taskId = String(currentTaskId || '')
+    if (!taskId) return
+    if (!isAuthenticated) return
+
+    timerAPI
+      .stopTimer(taskId, DEFAULT_SECONDS, 'completed')
+      .then(() => statsAPI.getTaskStats(taskId))
+      .then((resp) => {
+        const minutes = Number(resp?.data?.totalMinutes || 0)
+        setResultText(`${t('focus.congrats')} ${t('focus.totalFocused', minutes)}`)
+      })
+      .catch(() => {})
+  }, [currentTaskId, isAuthenticated, isRunning, timeLeft, t])
+
+  const primaryLabel = useMemo(() => {
+    if (isRunning) return t('focus.pause')
+    if (!hasStarted) return t('focus.start')
+    return t('focus.resume')
+  }, [hasStarted, isRunning, t])
+
+  const stopAndRecordInterrupted = async () => {
+    if (!currentTaskId) {
+      setNotice({ type: 'error', text: t('focus.selectTaskFirst') })
+      return
+    }
+    if (!isAuthenticated) {
+      setNotice({ type: 'error', text: t('auth.loginRequired') })
+      return
+    }
+
+    const ok = window.confirm(t('focus.stopConfirm'))
+    if (!ok) return
+
+    let effectiveLeft = timeLeft
+    if (isRunning) {
+      const startMs = runStartMsRef.current
+      const baseLeft = runBaseLeftRef.current
+      const elapsed = startMs ? Math.max(0, Math.floor((Date.now() - startMs) / 1000)) : 0
+      const nextLeft = Math.max(0, baseLeft - elapsed)
+      setTimeLeft(nextLeft)
+      setIsRunning(false)
+      runStartMsRef.current = null
+      runBaseLeftRef.current = nextLeft
+      effectiveLeft = nextLeft
+    }
+
+    const spent = Math.max(0, DEFAULT_SECONDS - Math.max(0, effectiveLeft))
+    if (spent > 0) {
+      try {
+        await timerAPI.stopTimer(currentTaskId, spent, 'interrupted')
+        const resp = await statsAPI.getTaskStats(currentTaskId)
+        const minutes = Number(resp?.data?.totalMinutes || 0)
+        setResultText(t('focus.totalFocused', minutes))
+      } catch {
+        // ignore
+      }
+    }
+
+    setHasStarted(false)
+    setTimeLeft(DEFAULT_SECONDS)
+    stopOnceRef.current = false
+  }
 
   return (
     <div className="sf-page">
@@ -81,20 +213,46 @@ export default function FocusPage() {
                   className="btn"
                   type="button"
                   onClick={() => {
-                    setIsRunning(false)
-                    setTimeLeft(25 * 60)
+                    stopAndRecordInterrupted()
                   }}
                   style={{ background: '#f0f0f0' }}
                 >
-                  {t('focus.cancel')}
+                  {t('focus.stop')}
                 </button>
                 <button
                   className="btn"
                   type="button"
-                  onClick={() => setIsRunning((v) => !v)}
+                  onClick={() => {
+                    setNotice(null)
+                    setResultText('')
+                    stopOnceRef.current = false
+
+                    if (!currentTaskId) {
+                      setNotice({ type: 'error', text: t('focus.selectTaskFirst') })
+                      return
+                    }
+
+                    if (isRunning) {
+                      const startMs = runStartMsRef.current
+                      const baseLeft = runBaseLeftRef.current
+                      const elapsed = startMs ? Math.max(0, Math.floor((Date.now() - startMs) / 1000)) : 0
+                      const nextLeft = Math.max(0, baseLeft - elapsed)
+                      setTimeLeft(nextLeft)
+                      setIsRunning(false)
+                      runStartMsRef.current = null
+                      runBaseLeftRef.current = nextLeft
+                      return
+                    }
+
+                    setHasStarted(true)
+                    if (timeLeft <= 0) setTimeLeft(DEFAULT_SECONDS)
+                    runBaseLeftRef.current = timeLeft <= 0 ? DEFAULT_SECONDS : timeLeft
+                    runStartMsRef.current = Date.now()
+                    setIsRunning(true)
+                  }}
                   style={{ background: '#ffcf9f' }}
                 >
-                  {isRunning ? t('focus.pause') : t('focus.resume')}
+                  {primaryLabel}
                 </button>
               </div>
 
@@ -104,6 +262,35 @@ export default function FocusPage() {
             </section>
 
             <section style={{ display: 'flex', flexDirection: 'column', gap: 25 }}>
+              {notice ? (
+                <div
+                  style={{
+                    border: `2px solid var(--ink)`,
+                    borderRadius: 14,
+                    padding: '10px 12px',
+                    background: 'var(--btn-delete-bg)',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  {notice.text}
+                </div>
+              ) : null}
+
+              {resultText ? (
+                <div
+                  style={{
+                    border: `3px solid var(--ink)`,
+                    borderRadius: 18,
+                    padding: '12px 14px',
+                    background: 'white',
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                  }}
+                >
+                  {resultText}
+                </div>
+              ) : null}
+
               <div
                 style={{
                   border: `3px solid var(--ink)`,
@@ -120,7 +307,21 @@ export default function FocusPage() {
                 <div style={{ marginTop: 14 }}>
                   <select
                     value={currentTaskId}
-                    onChange={(e) => setCurrentTaskId(e.target.value)}
+                    onChange={(e) => {
+                      const hasActiveSession = isRunning || (hasStarted && timeLeft > 0 && timeLeft < DEFAULT_SECONDS)
+                      if (hasActiveSession) {
+                        setNotice({ type: 'error', text: t('focus.stopBeforeDone') })
+                        return
+                      }
+                      const next = e.target.value
+                      setCurrentTaskId(next)
+                      setIsRunning(false)
+                      setTimeLeft(DEFAULT_SECONDS)
+                      setHasStarted(false)
+                      stopOnceRef.current = false
+                      runStartMsRef.current = null
+                      runBaseLeftRef.current = DEFAULT_SECONDS
+                    }}
                     style={{
                       padding: '10px 12px',
                       borderRadius: 12,
@@ -130,45 +331,46 @@ export default function FocusPage() {
                       fontWeight: 'bold',
                     }}
                   >
-                    {tasks.map((t) => (
+                    <option value="">{t('focus.unselected')}</option>
+                    {selectableTasks.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name}
                       </option>
                     ))}
                   </select>
                 </div>
-              </div>
 
-              <div
-                style={{
-                  border: `3px solid var(--ink)`,
-                  borderRadius: 30,
-                  padding: 30,
-                  textAlign: 'center',
-                  background: '#d1c4f9',
-                }}
-              >
-                <h3 style={{ margin: 0, fontSize: 28, marginBottom: 16 }}>{t('focus.nextTask')}</h3>
-                <p style={{ fontSize: 24, margin: 0, fontWeight: 'bold' }}>{nextTask?.name || t('focus.unselected')}</p>
-                <div style={{ marginTop: 14 }}>
-                  <select
-                    value={nextTaskId}
-                    onChange={(e) => setNextTaskId(e.target.value)}
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: 12,
-                      border: `2px solid var(--ink)`,
-                      width: '100%',
-                      maxWidth: 360,
-                      fontWeight: 'bold',
+                <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center' }}>
+                  <button
+                    className="btn"
+                    type="button"
+                    style={{ background: 'var(--btn-add-bg)', padding: '10px 18px', fontSize: 16 }}
+                    onClick={async () => {
+                      setNotice(null)
+                      if (!isAuthenticated) {
+                        setNotice({ type: 'error', text: t('auth.loginRequired') })
+                        return
+                      }
+                      const hasActiveSession = isRunning || (hasStarted && timeLeft > 0 && timeLeft < DEFAULT_SECONDS)
+                      if (hasActiveSession) {
+                        setNotice({ type: 'error', text: t('focus.stopBeforeDone') })
+                        return
+                      }
+                      if (!currentTaskId) {
+                        setNotice({ type: 'error', text: t('focus.selectTaskFirst') })
+                        return
+                      }
+                      try {
+                        await taskAPI.updateTaskStatus(currentTaskId, 'Done')
+                        await refresh()
+                        setResultText('')
+                      } catch {
+                        setNotice({ type: 'error', text: 'Failed' })
+                      }
                     }}
                   >
-                    {tasks.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
+                    {t('focus.markDone')}
+                  </button>
                 </div>
               </div>
             </section>
