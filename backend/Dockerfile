@@ -1,27 +1,21 @@
-# Backend Dockerfile - Node.js Express API
-FROM node:18-alpine
+# Backend Dockerfile - Python FastAPI
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Install dependencies
-RUN npm install
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
 COPY . .
 
-# Expose port
-EXPOSE 5000
+EXPOSE 8000
 
-# Environment variables
-ENV PORT=5000
-ENV NODE_ENV=production
+ENV PORT=8000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:5000/api/health', (res) => { if (res.statusCode !== 200) throw new Error(res.statusCode) })"
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health').read()"
 
-# Start application
-CMD ["npm", "start"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -10,7 +10,35 @@ function toDateInputValue(value) {
   return `${yyyy}-${mm}-${dd}`
 }
 
-export default function TaskModal({ open, initial, onCancel, onSubmit, t }) {
+const caretSvgUrl = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>'
+)}`
+
+const baseFieldStyle = {
+  padding: '10px 12px',
+  borderRadius: 12,
+  border: `3px solid var(--ink)`,
+  background: 'white',
+  color: 'var(--ink)',
+  fontWeight: 'bold',
+  minHeight: 44,
+  boxShadow: '4px 4px 0 var(--ink)',
+  outline: 'none',
+}
+
+const dropdownFieldStyle = {
+  ...baseFieldStyle,
+  paddingRight: 42,
+  appearance: 'none',
+  WebkitAppearance: 'none',
+  MozAppearance: 'none',
+  backgroundImage: `url("${caretSvgUrl}")`,
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 12px center',
+  backgroundSize: 16,
+}
+
+export default function TaskModal({ open, initial, onCancel, onSubmit, t, moduleOptions = [] }) {
   const [form, setForm] = useState({ title: '', deadline: '', moduleName: '', priority: 'M' })
 
   const isEdit = useMemo(() => !!initial?.id, [initial])
@@ -79,7 +107,7 @@ export default function TaskModal({ open, initial, onCancel, onSubmit, t }) {
             <input
               value={form.title}
               onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))}
-              style={{ padding: '10px 12px', borderRadius: 12, border: `2px solid var(--ink)` }}
+              style={baseFieldStyle}
               placeholder={t('tasks.titlePlaceholder')}
               required
             />
@@ -91,7 +119,7 @@ export default function TaskModal({ open, initial, onCancel, onSubmit, t }) {
               value={form.deadline}
               onChange={(e) => setForm((s) => ({ ...s, deadline: e.target.value }))}
               type="date"
-              style={{ padding: '10px 12px', borderRadius: 12, border: `2px solid var(--ink)` }}
+              style={baseFieldStyle}
             />
           </label>
 
@@ -100,9 +128,15 @@ export default function TaskModal({ open, initial, onCancel, onSubmit, t }) {
             <input
               value={form.moduleName}
               onChange={(e) => setForm((s) => ({ ...s, moduleName: e.target.value }))}
-              style={{ padding: '10px 12px', borderRadius: 12, border: `2px solid var(--ink)` }}
+              list="task-module-options"
+              style={dropdownFieldStyle}
               placeholder={t('tasks.modulePlaceholder')}
             />
+            <datalist id="task-module-options">
+              {(moduleOptions || []).map((name) => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
           </label>
 
           <label style={{ display: 'grid', gap: 6 }}>
@@ -110,7 +144,7 @@ export default function TaskModal({ open, initial, onCancel, onSubmit, t }) {
             <select
               value={form.priority}
               onChange={(e) => setForm((s) => ({ ...s, priority: e.target.value }))}
-              style={{ padding: '10px 12px', borderRadius: 12, border: `2px solid var(--ink)`, fontWeight: 'bold' }}
+              style={dropdownFieldStyle}
             >
               <option value="H">{t('tasks.priorityHigh')}</option>
               <option value="M">{t('tasks.priorityMedium')}</option>
@@ -132,4 +166,3 @@ export default function TaskModal({ open, initial, onCancel, onSubmit, t }) {
     </div>
   )
 }
-

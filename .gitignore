@@ -42,6 +42,10 @@ yarn-error.log*
 /data/
 docker-compose.override.yml
 
+# --- Python venv / RAG cache ---
+backend/.venv/
+backend/.chroma/
+
 # --- Hosting ---
 .vercel/
 

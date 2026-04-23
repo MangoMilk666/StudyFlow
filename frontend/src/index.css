@@ -26,9 +26,9 @@
   /* 页面外层“矩形框”统一尺寸（随窗口弹性变化）：
      - 目标：略小于浏览器窗口、尽量铺满约 2/3 屏幕宽度
      - 兜底：小窗口不溢出（用 min() 限制在视口内） */
-  --sf-frame-margin: 24px;
-  --sf-frame-width: clamp(760px, 66vw, 1200px);
-  --sf-frame-height: clamp(560px, 78vh, 900px);
+  --sf-frame-margin: 16px;
+  --sf-frame-width: clamp(880px, 78vw, 1400px);
+  --sf-frame-height: clamp(640px, 86vh, 980px);
 }
 
 * {

@@ -71,6 +71,10 @@ export const timerAPI = {
   getWeeklyStats: (userId) => apiClient.get(`/timer/weekly-stats/${userId}`),
 };
 
+export const statsAPI = {
+  getSummary: (range) => apiClient.get(`/stats/summary?range=${encodeURIComponent(range || 'week')}`),
+}
+
 export const canvasAPI = {
   getCourses: () => apiClient.get('/canvas/courses'),
   previewAssignments: (courseIds) => apiClient.post('/canvas/preview-assignments', { courseIds }),

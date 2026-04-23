@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import TopNav from '../components/TopNav'
 import { useApiHealth } from '../hooks/useApiHealth'
 import { useI18n } from '../i18n'
@@ -51,6 +52,19 @@ export default function Dashboard() {
   const { tasks, cycleStatus } = useUnifiedTasks()
   const apiHealth = useApiHealth()
   const { t: tr } = useI18n()
+  const [authFlash, setAuthFlash] = useState(null)
+
+  useEffect(() => {
+    try {
+      const v = sessionStorage.getItem('sf_auth_flash')
+      if (v === 'login_ok' || v === 'register_ok') {
+        setAuthFlash(v)
+        sessionStorage.removeItem('sf_auth_flash')
+      }
+    } catch {
+      setAuthFlash(null)
+    }
+  }, [])
 
   const byStatus = {
     todo: tasks.filter((t) => t.status === 'todo'),
@@ -91,6 +105,51 @@ export default function Dashboard() {
               : ` ${tr('dashboard.backendErr')}`}
           </div>
         </div>
+
+        {authFlash ? (
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+              zIndex: 90,
+            }}
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setAuthFlash(null)
+            }}
+          >
+            <div
+              style={{
+                width: 'min(520px, 100%)',
+                background: 'white',
+                border: `3px solid var(--ink)`,
+                borderRadius: 24,
+                padding: 18,
+                boxShadow: '10px 10px 0 rgba(0,0,0,0.15)',
+              }}
+            >
+              <h2 style={{ margin: '0 0 10px 0', textAlign: 'center' }}>
+                {authFlash === 'login_ok' ? tr('auth.loginOkPopup') : tr('auth.registerOkPopup')}
+              </h2>
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
+                <button
+                  className="btn"
+                  type="button"
+                  style={{ background: 'var(--btn-add-bg)' }}
+                  onClick={() => setAuthFlash(null)}
+                >
+                  {tr('common.ok')}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   )

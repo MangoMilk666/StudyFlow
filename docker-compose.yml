@@ -8,7 +8,7 @@ services:
       - "27017:27017"
     environment:
       MONGO_INITDB_DATABASE: studyflow
-    volumes:
+    volumes: # 数据持久化
       - mongo-data:/data/db
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
@@ -20,6 +20,9 @@ services:
 
   # Backend API Service
   backend:
+    # 固定 image 名称可以避免因为项目名变化导致重复生成多份镜像（占用磁盘空间）。
+    # 如需强制重建请显式运行：docker compose build backend
+    image: studyflow-backend:dev
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -29,10 +32,13 @@ services:
     environment:
       - MONGO_URI=mongodb://database:27017/studyflow
       - JWT_SECRET=studyflow_jwt_secret_key_2026
-      - NODE_ENV=production
       - PORT=8000
+      - MOCK_MODE=${MOCK_MODE:-false}
       - CANVAS_BASE_URL=${CANVAS_BASE_URL}
       - CANVAS_TOKEN=${CANVAS_TOKEN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - CHROMA_PERSIST_DIR=/data/chroma
     depends_on:
       database:
         condition: service_healthy
@@ -44,9 +50,12 @@ services:
     networks:
       - studyflow-network
     restart: unless-stopped
+    volumes: # 数据持久化
+      - chroma-data:/data/chroma
 
   # Frontend Web Service
   frontend:
+    image: studyflow-frontend:dev
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -62,6 +71,8 @@ services:
 # Named volumes for data persistence
 volumes:
   mongo-data:
+    driver: local
+  chroma-data:
     driver: local
 
 # Network for service communication

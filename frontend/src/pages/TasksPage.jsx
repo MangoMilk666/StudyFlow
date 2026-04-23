@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { useAuth } from '../auth'
 import { useI18n } from '../i18n'
-import { taskAPI } from '../services/api'
+import { moduleAPI, taskAPI } from '../services/api'
 import TaskModal from '../components/TaskModal'
 import syncIcon from '../assets/streamline-plump-color--synchronize-flat.svg'
 import { canvasAPI } from '../services/api'
@@ -60,12 +60,24 @@ function formatDateTime(value) {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
 }
 
+function getLocalDeviceTimestamp() {
+  const d = new Date()
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  const ss = String(d.getSeconds()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`
+}
+
 export default function TasksPage() {
   const { isAuthenticated } = useAuth()
   const { t } = useI18n()
 
   const demo = useTasks('demo_user')
   const [apiTasks, setApiTasks] = useState([])
+  const [moduleOptions, setModuleOptions] = useState([])
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState(null)
 
@@ -105,6 +117,32 @@ export default function TasksPage() {
     }
   }, [isAuthenticated])
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setModuleOptions([])
+      return
+    }
+
+    let ignore = false
+    moduleAPI
+      .getAllModules()
+      .then((resp) => {
+        if (ignore) return
+        const names = (resp.data || [])
+          .map((m) => String(m?.name || '').trim())
+          .filter(Boolean)
+        setModuleOptions(Array.from(new Set(names)))
+      })
+      .catch(() => {
+        if (ignore) return
+        setModuleOptions([])
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [isAuthenticated])
+
   const rows = useMemo(() => {
     if (isAuthenticated) {
       return (apiTasks || []).map((task) => ({
@@ -129,6 +167,11 @@ export default function TasksPage() {
     }))
   }, [apiTasks, demo.tasks, isAuthenticated])
 
+  const selectableModules = useMemo(() => {
+    const fromRows = rows.map((x) => String(x.moduleName || '').trim()).filter(Boolean)
+    return Array.from(new Set([...moduleOptions, ...fromRows]))
+  }, [moduleOptions, rows])
+
   const openNew = () => {
     setEditing(null)
     setModalOpen(true)
@@ -143,14 +186,18 @@ export default function TasksPage() {
     setNotice(null)
     try {
       if (isAuthenticated) {
+        const nowLocal = getLocalDeviceTimestamp()
         const payload = {
           title: form.title,
           deadline: form.deadline || null,
           moduleName: form.moduleName || '',
           priority: toPriorityApiValue(form.priority),
+          createdAt: nowLocal,
+          updatedAt: nowLocal,
         }
 
         if (editing?.id) {
+          delete payload.createdAt
           const resp = await taskAPI.updateTask(editing.id, payload)
           setApiTasks((prev) => prev.map((x) => (x._id === editing.id ? resp.data : x)))
         } else {
@@ -374,6 +421,7 @@ export default function TasksPage() {
       <TaskModal
         open={modalOpen}
         initial={editing}
+        moduleOptions={selectableModules}
         onCancel={() => {
           setModalOpen(false)
           setEditing(null)

@@ -72,6 +72,10 @@ export default function AuthPage() {
                     return
                   }
 
+                  try {
+                    sessionStorage.setItem('sf_auth_flash', isLogin ? 'login_ok' : 'register_ok')
+                  } catch {}
+
                   login(
                     {
                       userId: user.userId,
@@ -81,8 +85,8 @@ export default function AuthPage() {
                     token
                   )
 
-                  setNotice({ type: 'success', text: isLogin ? t('auth.loginSuccess') : t('auth.registerSuccess') })
-                  window.setTimeout(() => navigate('/dashboard'), 450)
+                  setNotice(null)
+                  navigate('/dashboard', { replace: true })
                 } catch (err) {
                   const msg = err?.response?.data?.error || err?.message || 'Login failed'
                   setNotice({ type: 'error', text: msg })
