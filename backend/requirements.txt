@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+motor
+pydantic
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt>=4.0.1,<5
+langchain
+langchain-community
+langchain-openai
+openai
+chromadb
+httpx
+tiktoken

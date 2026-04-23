@@ -1,0 +1,129 @@
+from datetime import datetime, timezone
+
+from app.deps import get_current_user
+from app.errors import ApiError
+from app.models.auth import AuthResponse, LoginRequest, RegisterRequest, UpdateEmailRequest, UserOut
+from app.services.db import MongoNotReadyError, get_db_checked
+from app.services.security import create_access_token, hash_password, verify_password
+from app.utils.mongo import oid_str, to_object_id
+from fastapi import APIRouter, Body, Depends
+
+
+router = APIRouter()
+
+
+@router.post("/register", status_code=201)
+async def register(payload: RegisterRequest = Body(default_factory=RegisterRequest)):
+    """注册。
+
+    与旧 Express 保持兼容：
+    - 缺字段：400 {"error": "username/email/password required"}
+    - 成功：201 { token, user: { userId, username, email } }
+    """
+
+    username = (payload.username or "").strip()
+    email = (payload.email or "").strip().lower()
+    password = payload.password or ""
+    if not username or not email or not password:
+        raise ApiError(400, "username/email/password required")
+
+    try:
+        db = await get_db_checked()
+    except MongoNotReadyError:
+        raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+    existing = await db.users.find_one({"$or": [{"email": email}, {"username": username}]})
+    if existing:
+        raise ApiError(400, "User already exists")
+
+    now = datetime.now(timezone.utc)
+    result = await db.users.insert_one(
+        {
+            "username": username,
+            "email": email,
+            "password": hash_password(password),
+            "createdAt": now,
+            "updatedAt": now,
+        }
+    )
+
+    user_id = oid_str(result.inserted_id)
+    token = create_access_token(user_id=user_id, email=email)
+    return AuthResponse(token=token, user=UserOut(userId=user_id, username=username, email=email))
+
+
+@router.post("/login")
+async def login(payload: LoginRequest = Body(default_factory=LoginRequest)):
+    """登录。
+
+    与旧 Express 保持兼容：
+    - 缺字段：400 {"error": "email/password required"}
+    - 失败：401 {"error": "Invalid credentials"}
+    - 成功：200 { token, user: { userId, username, email } }
+    """
+
+    email = (payload.email or "").strip().lower()
+    password = payload.password or ""
+    if not email or not password:
+        raise ApiError(400, "email/password required")
+
+    try:
+        db = await get_db_checked()
+    except MongoNotReadyError:
+        raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise ApiError(401, "Invalid credentials")
+
+    if not verify_password(password, str(user.get("password") or "")):
+        raise ApiError(401, "Invalid credentials")
+
+    user_id = oid_str(user.get("_id"))
+    token = create_access_token(user_id=user_id, email=email)
+    return AuthResponse(
+        token=token,
+        user=UserOut(userId=user_id, username=str(user.get("username") or ""), email=email),
+    )
+
+
+@router.patch("/email")
+async def update_email(
+    payload: UpdateEmailRequest = Body(default_factory=UpdateEmailRequest),
+    current_user: dict = Depends(get_current_user),
+):
+    """更新邮箱（需要 Bearer JWT）。
+
+    与旧 Express 保持兼容：
+    - 缺 email：400 {"error": "email required"}
+    - email 被占用：409 {"error": "Email already in use"}
+    - 成功：200 { user: { userId, username, email } }
+    """
+
+    new_email = (payload.email or "").strip().lower()
+    if not new_email:
+        raise ApiError(400, "email required")
+
+    try:
+        db = await get_db_checked()
+    except MongoNotReadyError:
+        raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+    user_id = current_user["userId"]
+    exists = await db.users.find_one({"email": new_email, "_id": {"$ne": to_object_id(user_id)}})
+    if exists:
+        raise ApiError(409, "Email already in use")
+
+    now = datetime.now(timezone.utc)
+    await db.users.update_one(
+        {"_id": to_object_id(user_id)},
+        {"$set": {"email": new_email, "updatedAt": now}},
+    )
+    updated = await db.users.find_one({"_id": to_object_id(user_id)})
+    if not updated:
+        raise ApiError(404, "User not found")
+
+    return {
+        "user": {
+            "userId": oid_str(updated.get("_id")),
+            "username": str(updated.get("username") or ""),
+            "email": str(updated.get("email") or ""),
+        }
+    }
