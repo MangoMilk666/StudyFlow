@@ -33,4 +33,4 @@
   - 移除弃用的 `version:` 字段
   - 端口冲突处理：后端端口从 5000 调整为 8000，并同步更新相关引用
 
-备注：部分文档中的端口（例如 5000）与当前代码可能不一致；当前以 `docker-compose.yml` / `backend/server.js` 为准。
+备注：部分文档中的端口（例如 5000）与当前代码可能不一致；当前以 `docker-compose.yml` / `backend/app/main.py` 为准。

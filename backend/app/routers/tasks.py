@@ -21,6 +21,17 @@ from app.utils.mongo import oid_str, serialize_datetime, to_object_id
 
 router = APIRouter()
 
+def _coerce_client_datetime(value: str | None, *, fallback: datetime) -> datetime:
+    dt = parse_datetime(value)
+    if dt is None:
+        return fallback
+    if dt.tzinfo is None:
+        local_tz = datetime.now().astimezone().tzinfo
+        if local_tz is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=local_tz).astimezone(timezone.utc)
+    return dt.astimezone(timezone.utc)
+
 async def _get_or_create_module_by_name(db, user_oid, name: str, now: datetime) -> dict:
     cleaned = (name or "").strip()
     if not cleaned:
@@ -130,8 +141,8 @@ async def create_task(
     except MongoNotReadyError:
         raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
     now = datetime.now(timezone.utc)
-    created_at = parse_datetime(payload.createdAt) or now
-    updated_at = parse_datetime(payload.updatedAt) or created_at
+    created_at = _coerce_client_datetime(payload.createdAt, fallback=now)
+    updated_at = _coerce_client_datetime(payload.updatedAt, fallback=created_at)
     user_oid = to_object_id(current_user["userId"])
     module_oid = to_object_id(payload.module) if payload.module else None
     module_name = (payload.moduleName or "").strip()

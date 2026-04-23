@@ -31,14 +31,27 @@ def _to_float(value) -> float:
         return 0.0
 
 
+def _tz_offset_str(dt: datetime) -> str:
+    offset = dt.utcoffset() or timedelta(0)
+    total = int(offset.total_seconds())
+    sign = "+" if total >= 0 else "-"
+    total = abs(total)
+    hh = total // 3600
+    mm = (total % 3600) // 60
+    return f"{sign}{hh:02d}:{mm:02d}"
+
+
 @router.get("/summary")
 async def get_stats_summary(
     range: str = Query(default="week", pattern="^(day|week|month)$"),
     current_user: dict = Depends(get_current_user),
 ):
     days = _range_days(range)
-    now = datetime.now(timezone.utc)
-    start = now - timedelta(days=days)
+    now_local = datetime.now().astimezone()
+    tz_str = _tz_offset_str(now_local)
+    start_local = (now_local - timedelta(days=max(days - 1, 0))).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_utc = start_local.astimezone(timezone.utc)
+    now_utc = now_local.astimezone(timezone.utc)
 
     try:
         db = await get_db_checked()
@@ -108,17 +121,22 @@ async def get_stats_summary(
                 "$match": {
                     "userId": user_oid,
                     "status": {"$in": ["Done", "done"]},
-                    "updatedAt": {"$gte": start, "$lte": now},
                 }
             },
             {
                 "$addFields": {
                     "updatedAtSafe": {
-                        "$convert": {"input": "$updatedAt", "to": "date", "onError": "$createdAt", "onNull": "$createdAt"}
+                        "$convert": {
+                            "input": "$updatedAt",
+                            "to": "date",
+                            "onError": {"$toDate": "$_id"},
+                            "onNull": {"$toDate": "$_id"},
+                        }
                     }
                 }
             },
-            {"$addFields": {"day": {"$dateToString": {"format": "%Y-%m-%d", "date": "$updatedAtSafe"}}}},
+            {"$match": {"updatedAtSafe": {"$gte": start_utc, "$lte": now_utc}}},
+            {"$addFields": {"day": {"$dateToString": {"format": "%Y-%m-%d", "date": "$updatedAtSafe", "timezone": tz_str}}}},
             {"$group": {"_id": "$day", "count": {"$sum": 1}}},
         ]
     ).to_list(length=None)
@@ -126,25 +144,31 @@ async def get_stats_summary(
 
     created_by_day = await db.tasks.aggregate(
         [
-            {"$match": {"userId": user_oid, "createdAt": {"$gte": start, "$lte": now}}},
+            {"$match": {"userId": user_oid}},
             {
                 "$addFields": {
                     "createdAtSafe": {
-                        "$convert": {"input": "$createdAt", "to": "date", "onError": now, "onNull": now}
+                        "$convert": {
+                            "input": "$createdAt",
+                            "to": "date",
+                            "onError": {"$toDate": "$_id"},
+                            "onNull": {"$toDate": "$_id"},
+                        }
                     }
                 }
             },
-            {"$addFields": {"day": {"$dateToString": {"format": "%Y-%m-%d", "date": "$createdAtSafe"}}}},
+            {"$match": {"createdAtSafe": {"$gte": start_utc, "$lte": now_utc}}},
+            {"$addFields": {"day": {"$dateToString": {"format": "%Y-%m-%d", "date": "$createdAtSafe", "timezone": tz_str}}}},
             {"$group": {"_id": "$day", "count": {"$sum": 1}}},
         ]
     ).to_list(length=None)
     created_map = {str(x.get("_id")): int(x.get("count") or 0) for x in created_by_day}
 
     trend = []
-    cursor = datetime(start.year, start.month, start.day, tzinfo=timezone.utc)
-    end_day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    cursor = start_local.date()
+    end_day = now_local.date()
     while cursor <= end_day:
-        key = _date_key(cursor)
+        key = cursor.isoformat()
         trend.append({"date": key, "done": done_map.get(key, 0), "created": created_map.get(key, 0)})
         cursor = cursor + timedelta(days=1)
 

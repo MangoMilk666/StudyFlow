@@ -13,28 +13,19 @@ StudyFlow is a professional learning task management platform with:
 ### Backend (`/backend`)
 ```
 backend/
-├── server.js              # Express server entry point
-├── package.json          # Dependencies with MongoDB, bcrypt, JWT
-├── Dockerfile            # Docker configuration with health check
-├── .env.example          # Environment variables template
+├── app/                  # FastAPI application package
+│   ├── main.py           # FastAPI entry point
+│   ├── config.py         # Settings (.env)
+│   ├── deps.py           # JWT auth dependency
+│   ├── errors.py         # Unified error response
+│   ├── models/           # Pydantic models (request/response schemas)
+│   ├── routers/          # API routes: auth/tasks/modules/timer/stats/ai/canvas
+│   ├── services/         # DB, security, RAG/AI, canvas client
+│   └── utils/            # datetime/mongo helpers
 │
-├── models/               # MongoDB schemas
-│   ├── User.js          # User document model
-│   ├── Task.js          # Task document model
-│   ├── Module.js        # Course/project module model
-│   └── TimerLog.js      # Timer session logs
-│
-├── routes/              # API endpoints
-│   ├── auth.js          # POST /register, /login
-│   ├── tasks.js         # CRUD operations for tasks
-│   ├── modules.js       # CRUD operations for modules
-│   └── timer.js         # Timer and statistics
-│
-└── controllers/         # Business logic
-    ├── authController.js
-    ├── taskController.js
-    ├── moduleController.js
-    └── timerController.js
+├── requirements.txt      # Python dependencies
+├── Dockerfile            # Backend container build (uvicorn)
+└── .env.example          # Environment variables template
 ```
 
 ### Frontend (`/frontend`)
@@ -88,7 +79,7 @@ POST /api/auth/login
 
 ### Tasks
 ```
-GET    /api/tasks?userId=xxx              # List all tasks
+GET    /api/tasks                         # List tasks (JWT required)
 POST   /api/tasks                         # Create task
 GET    /api/tasks/:id                     # Get task details
 PUT    /api/tasks/:id                     # Update task
@@ -99,7 +90,7 @@ POST   /api/tasks/:id/subtask             # Add subtask
 
 ### Modules (Courses)
 ```
-GET    /api/modules?userId=xxx            # List modules
+GET    /api/modules                       # List modules (JWT required)
 POST   /api/modules                       # Create module
 PUT    /api/modules/:id                   # Update module
 DELETE /api/modules/:id                   # Delete module
@@ -111,65 +102,78 @@ POST   /api/timer/start                   # Start session
 POST   /api/timer/stop                    # Save session
 GET    /api/timer/logs/:taskId            # Get task timer logs
 GET    /api/timer/weekly-stats/:userId    # Weekly statistics
+GET    /api/stats/summary?range=day|week|month  # Stats summary
 ```
 
 ## 📊 Database Schema
 
 ### User Collection
-```javascript
+```json
 {
-  _id: ObjectId,
-  username: String (unique),
-  email: String (unique, lowercase),
-  password: String (bcrypt-hashed),
-  createdAt: Date,
-  updatedAt: Date
+  "_id": "ObjectId",
+  "username": "string",
+  "email": "string",
+  "password": "string",
+  "createdAt": "Date",
+  "updatedAt": "Date"
 }
 ```
 
 ### Task Collection
-```javascript
+```json
 {
-  _id: ObjectId,
-  userId: ObjectId (ref: User),
-  title: String,
-  description: String,
-  status: String (To Do | In Progress | Review | Done),
-  priority: String (Low | Medium | High),
-  deadline: Date,
-  module: ObjectId (ref: Module),
-  timeSpent: Number (minutes),
-  subtasks: [{ text: String, completed: Boolean }],
-  createdAt: Date,
-  updatedAt: Date
+  "_id": "ObjectId",
+  "userId": "ObjectId",
+  "title": "string",
+  "description": "string",
+  "status": "string",
+  "priority": "string",
+  "deadline": "Date|null",
+  "module": "ObjectId|null",
+  "moduleName": "string",
+  "timeSpent": "number",
+  "subtasks": [
+    {
+      "text": "string",
+      "completed": "boolean"
+    }
+  ],
+  "source": {
+    "type": "string",
+    "courseId": "string",
+    "assignmentId": "string"
+  },
+  "unlockAt": "Date|null",
+  "createdAt": "Date",
+  "updatedAt": "Date"
 }
 ```
 
 ### Module Collection
-```javascript
+```json
 {
-  _id: ObjectId,
-  userId: ObjectId (ref: User),
-  name: String,
-  colorCode: String (hex color),
-  description: String,
-  createdAt: Date,
-  updatedAt: Date
+  "_id": "ObjectId",
+  "userId": "ObjectId",
+  "name": "string",
+  "colorCode": "string",
+  "description": "string",
+  "createdAt": "Date",
+  "updatedAt": "Date"
 }
 ```
 
 ### TimerLog Collection
-```javascript
+```json
 {
-  _id: ObjectId,
-  taskId: ObjectId (ref: Task),
-  userId: ObjectId (ref: User),
-  duration: Number (minutes),
-  startTime: Date,
-  endTime: Date,
-  sessionDate: Date,
-  createdAt: Date,
-  updatedAt: Date
+  "_id": "ObjectId",
+  "taskId": "ObjectId",
+  "userId": "ObjectId",
+  "duration": "number",
+  "startTime": "Date",
+  "endTime": "Date",
+  "sessionDate": "Date",
+  "createdAt": "Date",
+  "updatedAt": "Date"
 }
 ```
 
@@ -178,11 +182,11 @@ GET    /api/timer/weekly-stats/:userId    # Weekly statistics
 ### Build & Run with Docker Compose
 ```bash
 # Start all services (MongoDB + Backend + Frontend)
-docker-compose up --build
+docker compose up --build
 
 # Services will be available at:
 # - Frontend: http://localhost:5173
-# - Backend: http://localhost:5000
+# - Backend: http://localhost:8000
 # - MongoDB: mongodb://localhost:27017
 ```
 
@@ -190,10 +194,10 @@ docker-compose up --build
 
 **Backend (.env)**
 ```
-PORT=5000
+PORT=8000
 MONGO_URI=mongodb://database:27017/studyflow
 JWT_SECRET=your_secret_key_here
-NODE_ENV=production
+MOCK_MODE=false
 ```
 
 **Frontend (.env)**
@@ -206,10 +210,10 @@ VITE_API_BASE_URL=/api
 ### Backend Development
 ```bash
 cd backend
-npm install
-npm start
-# Server runs on http://localhost:5000
-# Health check: GET /api/health
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
 ```
 
 ### Frontend Development
@@ -259,11 +263,11 @@ npm run dev
 
 | Layer | Technology |
 |-------|------------|
-| **Frontend** | React 19 + Material-UI 5 |
+| **Frontend** | React + Vite |
 | **Build Tool** | Vite (fast bundler) |
-| **Backend** | Node.js + Express 5 |
-| **Database** | MongoDB |
-| **Authentication** | JWT + bcryptjs |
+| **Backend** | FastAPI (Python) |
+| **Database** | MongoDB (motor) |
+| **Authentication** | JWT + bcrypt |
 | **HTTP Client** | Axios |
 | **Containerization** | Docker + Docker Compose |
 | **Web Server** | Nginx (production) |

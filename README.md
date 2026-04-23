@@ -4,32 +4,27 @@ StudyFlow is a student-oriented learning efficiency management demo, centered ar
 
 ## Current Implemented Features (Based on Repository Code)
 
-### Backend (`backend/`, Express + MongoDB/Mongoose)
+### Backend (`backend/`, FastAPI + MongoDB/motor)
 
 * ✅ Health Check: `GET /api/health`
 * ✅ Authentication: `POST /api/auth/register`, `POST /api/auth/login` (bcrypt hashing, JWT issuance)
 * ✅ Tasks: `GET/POST /api/tasks`, `GET/PUT/DELETE /api/tasks/:id`, `PATCH /api/tasks/:id/status`, `POST /api/tasks/:id/subtask`
 * ✅ Modules: `GET/POST /api/modules`, `PUT/DELETE /api/modules/:id`
 * ✅ Timer: `POST /api/timer/start`, `POST /api/timer/stop`, `GET /api/timer/logs/:taskId`, `GET /api/timer/weekly-stats/:userId`
+* ✅ Stats: `GET /api/stats/summary?range=day|week|month`
 * ✅ Data Models: User / Task / Module / TimerLog
 * ✅ Supports `MOCK_MODE=true`: backend runs in-memory mock routes without connecting to MongoDB (minimal viable API)
-
-**Important Note:**
-The backend currently does NOT implement a JWT verification middleware (i.e., no `jwt.verify` for `Authorization: Bearer ...`). Most business APIs rely on `userId` fields/query parameters for filtering.
 
 ---
 
 ### Frontend (`frontend/`, React + Vite)
 
-* ✅ Pages & Routing: `/` (Home), `/auth` (Login/Register demo), `/dashboard`, `/tasks`, `/focus`, `/settings`
+* ✅ Pages & Routing: `/` (Home), `/auth` (Login/Register), `/dashboard`, `/stats`, `/tasks`, `/focus`, `/settings`
 * ✅ Dashboard: 4-state task board (To Do / In Progress / Review / Done), supports click-to-cycle task status (demo interaction)
 * ✅ Tasks: task table (Add/Edit/Delete demo)
 * ✅ Focus: 25-minute countdown timer + pause/resume/cancel (demo interaction)
 * ✅ Settings: page skeleton (placeholder buttons)
 * ✅ Health Check Indicator: frontend probes `/api/health` to detect backend availability
-
-**Important Note:**
-Frontend “login state/task data” currently relies on `localStorage` demo data. Although `frontend/src/services/api.js` provides an Axios API wrapper, it is not fully integrated into page logic yet (e.g., token key mismatch with `useAuth` storage).
 
 ---
 
@@ -42,13 +37,11 @@ Frontend “login state/task data” currently relies on `localStorage` demo dat
 
 ## Local Development
 
-### Option 1: Docker Compose (Recommended)
+### Option 1: One-command dev (Recommended)
 
 ```bash
 cd /path/to/StudyFlow
-docker-compose up -d --build
-docker-compose ps
-docker-compose logs -f
+./dev-up.sh --real
 ```
 
 Access:
@@ -63,8 +56,7 @@ Access:
 Stop:
 
 ```bash
-docker-compose down
-docker-compose down -v
+Ctrl+C
 ```
 
 ---
@@ -75,13 +67,10 @@ docker-compose down -v
 
 ```bash
 cd backend
-npm install
-
-# Option A: Connect to local MongoDB
-npm start  # http://localhost:8000
-
-# Option B: MOCK mode (no MongoDB required)
-npm run dev:mock  # http://localhost:8000
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
 ```
 
 Environment variables example: see root `.env.example` (Docker Compose reads root `.env`).
@@ -109,6 +98,4 @@ For local development, Vite is configured in `frontend/vite.config.js` to proxy 
 ---
 
 ## Notes (Legacy)
-
-The root-level `server/`, `public/`, and `src/` directories are legacy code related to early static pages/build artifacts.
-The current main workflow is based on `frontend/` + `backend/` + `docker-compose.yml`.
+The main workflow is based on `frontend/` + `backend/` + `docker-compose.yml`.

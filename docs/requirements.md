@@ -6,13 +6,14 @@
 .
 ├── backend
 │   ├── Dockerfile
-│   ├── config # db连接配置
-│   ├── controllers
-│   ├── models # MongoDB schema
-│   ├── package-lock.json
-│   ├── package.json
-│   ├── routes # 路由
-│   └── server.js
+│   ├── requirements.txt
+│   ├── .env.example
+│   └── app
+│       ├── main.py
+│       ├── routers # 路由
+│       ├── models # Pydantic schema
+│       ├── services
+│       └── utils
 ├── docker-compose.yml
 ├── docs
 │   ├── database_schema.md
@@ -51,4 +52,3 @@
     │   └── services #API请求层(axios封装)
     └── vite.config.js
 ```
-
