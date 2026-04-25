@@ -54,7 +54,7 @@ async def register(payload: RegisterRequest = Body(default_factory=RegisterReque
 @router.post("/login")
 async def login(payload: LoginRequest = Body(default_factory=LoginRequest)):
     """登录。
-
+    FastAPI 会自动去 HTTP Body 里寻找 JSON 数据并反序列化成这个对象
     与旧 Express 保持兼容：
     - 缺字段：400 {"error": "email/password required"}
     - 失败：401 {"error": "Invalid credentials"}

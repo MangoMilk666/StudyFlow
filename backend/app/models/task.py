@@ -23,7 +23,7 @@ class TaskSource(BaseModel):
 
 
 class SubtaskOut(BaseModel):
-    """子任务结构（轻量）。"""
+    """子任务结构（轻量） VO"""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -32,7 +32,7 @@ class SubtaskOut(BaseModel):
 
 
 class TaskOut(BaseModel):
-    """返回给前端的 Task 对象。
+    """返回给前端的 Task VO对象。
 
     兼容点：
     - 仍输出 MongoDB 风格字段（如 _id、userId）
@@ -59,7 +59,7 @@ class TaskOut(BaseModel):
 
 
 class TaskCreateRequest(BaseModel):
-    """创建任务请求体。
+    """创建任务请求体 DTO。
 
     注意：deadline/unlockAt 在请求中通常是 ISO 字符串，路由层会做解析。
     """
@@ -80,12 +80,12 @@ class TaskCreateRequest(BaseModel):
 
 
 class TaskUpdateRequest(BaseModel):
-    """更新任务请求体。
+    """更新任务请求体 DTO。
 
     - extra=allow：兼容 Express 的 PUT 直接透传 req.body
     - 字段均可选
     """
-
+    # 允许后端接收比定义更多的字段而不报错
     model_config = ConfigDict(extra="allow")
 
     title: str | None = None
@@ -102,7 +102,7 @@ class TaskUpdateRequest(BaseModel):
 
 
 class TaskStatusUpdateRequest(BaseModel):
-    """仅更新状态的请求体。"""
+    """仅更新状态的请求体 DTO"""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -110,7 +110,7 @@ class TaskStatusUpdateRequest(BaseModel):
 
 
 class SubtaskCreateRequest(BaseModel):
-    """追加 subtask 的请求体。"""
+    """追加 subtask 的请求体 DTO"""
 
     model_config = ConfigDict(extra="ignore")
 

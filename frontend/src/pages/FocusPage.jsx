@@ -65,16 +65,22 @@ export default function FocusPage() {
     }
   }, [])
 
-  useEffect(() => {
-    if (!tasks.length) return
-    if (currentTaskId) return
-    const selectable = tasks.filter((x) => x.status === 'todo' || x.status === 'in_progress')
-    if (!selectable.length) return
-    setCurrentTaskId(selectable[0]?.id || '')
-  }, [tasks, currentTaskId])
-
   const currentTask = useMemo(() => tasks.find((t) => t.id === currentTaskId), [tasks, currentTaskId])
   const selectableTasks = useMemo(() => tasks.filter((x) => x.status === 'todo' || x.status === 'in_progress'), [tasks])
+
+  useEffect(() => {
+    if (!currentTaskId) return
+    const stillSelectable = selectableTasks.some((x) => x.id === currentTaskId)
+    if (stillSelectable) return
+
+    setCurrentTaskId('')
+    setIsRunning(false)
+    setHasStarted(false)
+    setTimeLeft(DEFAULT_SECONDS)
+    stopOnceRef.current = false
+    runStartMsRef.current = null
+    runBaseLeftRef.current = DEFAULT_SECONDS
+  }, [currentTaskId, selectableTasks])
 
   useEffect(() => {
     if (!isRunning) return

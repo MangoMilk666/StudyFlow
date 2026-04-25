@@ -80,7 +80,7 @@ const translations = {
       markDone: 'Mark Done',
       stopBeforeDone: 'Please stop the timer before marking the task as Done.',
       skeletonNote: 'Skeleton stage: the timer will show an alert when time is up; later you can connect to /api/timer/*.',
-      unselected: 'Not selected',
+      unselected: 'No Task',
     },
     settings: {
       account: 'Account',
@@ -217,7 +217,7 @@ const translations = {
       markDone: '标记为已完成',
       stopBeforeDone: '当前有进行中的计时，请先停止计时后再标记任务为已完成。',
       skeletonNote: '页面骨架阶段：计时结束会弹窗提示；后续可对接 `/api/timer/*` 写入记录。',
-      unselected: '未选择',
+      unselected: '无任务',
     },
     settings: {
       account: '账号',

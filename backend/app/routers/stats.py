@@ -30,6 +30,18 @@ def _to_float(value) -> float:
     except Exception:
         return 0.0
 
+def _round_minutes(value) -> float:
+    try:
+        return float(round(float(value), 2))
+    except Exception:
+        return 0.0
+
+def _round_minutes_int_from_seconds(seconds: int) -> int:
+    try:
+        return int(round(float(seconds) / 60.0))
+    except Exception:
+        return 0
+
 
 def _tz_offset_str(dt: datetime) -> str:
     offset = dt.utcoffset() or timedelta(0)
@@ -114,7 +126,7 @@ async def get_stats_summary(
         raise ApiError(500, f"统计数据聚合失败：{e}")
 
     module_time_spent = [
-        {"module": str(d.get("_id") or ""), "minutes": _to_float(d.get("minutes") or 0)} for d in module_agg
+        {"module": str(d.get("_id") or ""), "minutes": _round_minutes(d.get("minutes") or 0)} for d in module_agg
     ]
 
     top_tasks = (
@@ -127,7 +139,7 @@ async def get_stats_summary(
         {
             "taskId": oid_str(t.get("_id")),
             "title": str(t.get("title") or ""),
-            "minutes": _to_float(t.get("timeSpent") or 0),
+            "minutes": _round_minutes(t.get("timeSpent") or 0),
             "moduleName": str(t.get("moduleName") or ""),
         }
         for t in top_tasks
@@ -196,7 +208,7 @@ async def get_stats_summary(
         "done": int(done),
         "undone": int(undone),
         "focusSeconds": focus_seconds,
-        "focusMinutes": int(focus_seconds // 60),
+        "focusMinutes": _round_minutes_int_from_seconds(focus_seconds),
         "pomodorosCompleted": pomodoros_completed,
         "moduleTimeSpent": module_time_spent,
         "topTasksByTime": top_tasks_by_time,
@@ -236,6 +248,6 @@ async def get_task_stats(taskId: str, current_user: dict = Depends(get_current_u
     return {
         "taskId": taskId,
         "totalSeconds": total_seconds,
-        "totalMinutes": int(total_seconds // 60),
+        "totalMinutes": _round_minutes_int_from_seconds(total_seconds),
         "pomodorosCompleted": pomodoros,
     }

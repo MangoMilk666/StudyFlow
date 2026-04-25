@@ -49,7 +49,9 @@ def close_mongo() -> None:
 
 async def ping_mongo() -> None:
     """尝试与 MongoDB 建立通信。
-
+    引入 async/await 是为了利用 Event Loop（事件循环）。
+    当一个请求在等待 AI 回复或数据库 I/O 时，单线程会立即跳去处理下一个请求，
+    而不是原地阻塞。
     - 成功：mongo.ready=True
     - 失败：记录 last_error，并抛出异常（上层决定如何返回给用户）
     """

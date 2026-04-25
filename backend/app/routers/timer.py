@@ -100,7 +100,7 @@ async def stop_timer(
             createdAt=serialize_datetime(timer_log.get("createdAt")),
             updatedAt=serialize_datetime(timer_log.get("updatedAt")),
         ).model_dump(by_alias=True),
-        "totalTimeSpent": float(new_time_spent),
+        "totalTimeSpent": float(round(float(new_time_spent), 2)),
     }
 
 
