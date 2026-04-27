@@ -28,6 +28,31 @@ from app.utils.mongo import to_object_id
 
 router = APIRouter()
 
+def _map_llm_error(e: Exception) -> ApiError | None:
+    """把 LLM 调用异常映射成更准确的 ApiError。
+
+    说明：
+    - OpenAI API 可能返回 401（invalid_api_key）、429（rate limit）等。
+    - 这些不是“我们系统的 JWT 401”，否则前端会误以为登录过期并清除登录态。
+    - 因此这里统一返回 503/502 等更合适的状态码，同时给出可读消息。
+    """
+
+    msg = str(e)
+    status = getattr(e, "status_code", None) or getattr(e, "status", None)
+    try:
+        status = int(status) if status is not None else None
+    except Exception:
+        status = None
+
+    lowered = msg.lower()
+    if status == 401 or "invalid_api_key" in lowered or "incorrect api key" in lowered:
+        return ApiError(503, "OpenAI API Key 无效：请检查 OPENAI_API_KEY（或 OPENAI_BASE_URL 是否匹配）")
+    if status == 429 or "rate limit" in lowered or "quota" in lowered:
+        return ApiError(503, "OpenAI 触发限流或额度不足：请稍后重试或检查额度")
+    if status is not None and status >= 500:
+        return ApiError(502, f"上游模型服务异常：HTTP {status}")
+    return None
+
 
 def _history_to_messages(history: list[dict[str, Any]] | None):
     """把前端传入的 history（role/content 列表）转换为 LangChain messages。
@@ -47,8 +72,10 @@ def _history_to_messages(history: list[dict[str, Any]] | None):
             role = (h.get("role") or "").lower()
             content = str(h.get("content") or "")
             if role in {"assistant", "ai"}:
+                # ai回复
                 out.append(AIMessage(content=content))
             elif role in {"user", "human"}:
+                # 用户回复
                 out.append(HumanMessage(content=content))
         return out
     except Exception:
@@ -115,9 +142,9 @@ async def chat(
     if not message:
         raise ApiError(400, "message required")
 
-    if not settings.OPENAI_API_KEY:
+    if not settings.OPENAI_API_KEY and not getattr(settings, "OPENAI_BASE_URL", None):
         # 选择显式报错而不是静默降级：避免用户以为 AI 可用但一直“无响应”
-        raise ApiError(503, "OpenAI not configured: missing OPENAI_API_KEY")
+        raise ApiError(503, "LLM not configured: missing OPENAI_API_KEY (or OPENAI_BASE_URL for local providers)")
 
     try:
         from langchain_core.tools import tool
@@ -176,7 +203,18 @@ async def chat(
 
         tools.append(search_user_context)
 
-    llm = ChatOpenAI(api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_MODEL, temperature=0)
+    llm_kwargs: dict[str, Any] = {
+        "api_key": settings.OPENAI_API_KEY or "ollama",
+        "model": settings.OPENAI_MODEL,
+        "temperature": 0,
+    }
+    if getattr(settings, "OPENAI_BASE_URL", None):
+        llm_kwargs["base_url"] = settings.OPENAI_BASE_URL
+    try:
+        llm = ChatOpenAI(**llm_kwargs)
+    except TypeError:
+        llm_kwargs.pop("base_url", None)
+        llm = ChatOpenAI(**llm_kwargs)
 
     # create_react_agent 会构建一个“可调用工具”的 Agent Graph。
     # 输入 state: {"messages": [...] }，输出 state 仍包含 messages（含工具调用与最终回复）。
@@ -197,4 +235,7 @@ async def chat(
         reply = getattr(last, "content", None) if last is not None else None
         return {"reply": reply or ""}
     except Exception as e:
+        mapped = _map_llm_error(e)
+        if mapped is not None:
+            raise mapped
         raise ApiError(500, f"AI execution error: {e}")

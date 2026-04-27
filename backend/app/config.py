@@ -52,6 +52,7 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: str | None = Field(default=None, repr=False)
     OPENAI_MODEL: str = "gpt-4.1-mini"
+    OPENAI_BASE_URL: str | None = None
 
     CHROMA_PERSIST_DIR: str = ".chroma"
 

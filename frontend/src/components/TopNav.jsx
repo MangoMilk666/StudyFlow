@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 
 import SettingsFab from './SettingsFab'
+import AIFab from './AIFab'
 import { useI18n } from '../i18n'
 import { useAuth } from '../auth'
 
@@ -35,6 +36,7 @@ export default function TopNav() {
           </NavLink>
         ))}
       </nav>
+      {isAuthenticated ? <AIFab /> : null}
       <SettingsFab />
     </>
   )

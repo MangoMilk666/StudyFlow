@@ -103,6 +103,10 @@ export const statsAPI = {
   getTaskStats: (taskId) => apiClient.get(`/stats/task/${encodeURIComponent(taskId)}`),
 }
 
+export const aiAPI = {
+  chat: (message, history) => apiClient.post('/ai/chat', { message, history }),
+}
+
 export const canvasAPI = {
   getCourses: () => apiClient.get('/canvas/courses'),
   previewAssignments: (courseIds) => apiClient.post('/canvas/preview-assignments', { courseIds }),

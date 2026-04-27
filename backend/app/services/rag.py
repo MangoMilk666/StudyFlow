@@ -84,14 +84,21 @@ async def get_user_retriever(user_id: str):
     """
 
     settings = get_settings()
-    if not settings.OPENAI_API_KEY:
+    if not settings.OPENAI_API_KEY and not getattr(settings, "OPENAI_BASE_URL", None):
         return None
 
     # OpenAIEmbeddings：把文本转为向量；Chroma：本地向量库（可持久化到目录）
     from langchain_openai import OpenAIEmbeddings
     from langchain_community.vectorstores import Chroma
 
-    embeddings = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
+    emb_kwargs: dict[str, Any] = {"api_key": settings.OPENAI_API_KEY or "ollama"}
+    if getattr(settings, "OPENAI_BASE_URL", None):
+        emb_kwargs["base_url"] = settings.OPENAI_BASE_URL
+    try:
+        embeddings = OpenAIEmbeddings(**emb_kwargs)
+    except TypeError:
+        emb_kwargs.pop("base_url", None)
+        embeddings = OpenAIEmbeddings(**emb_kwargs)
     collection_name = f"studyflow_{user_id}"
     vectorstore = Chroma(
         collection_name=collection_name,

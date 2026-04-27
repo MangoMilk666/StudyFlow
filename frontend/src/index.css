@@ -187,6 +187,38 @@ a {
   z-index: 50;
 }
 
+.sf-ai-fab {
+  position: fixed;
+  right: calc(var(--sf-frame-margin) + 6px);
+  bottom: calc(var(--sf-frame-margin) + 6px + 70px);
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  border: 3px solid var(--ink);
+  background: white;
+  box-shadow: 6px 6px 0 var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.sf-ai-fab:active {
+  transform: translate(2px, 2px);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.sf-ai-fab[disabled] {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.sf-ai-fab-icon {
+  width: 28px;
+  height: 28px;
+}
+
 .sf-settings-fab:active {
   transform: translate(2px, 2px);
   box-shadow: 4px 4px 0 var(--ink);

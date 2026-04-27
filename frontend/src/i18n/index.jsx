@@ -82,6 +82,16 @@ const translations = {
       skeletonNote: 'Skeleton stage: the timer will show an alert when time is up; later you can connect to /api/timer/*.',
       unselected: 'No Task',
     },
+    ai: {
+      title: 'AI Assistant',
+      openLabel: 'Open AI assistant',
+      iconAlt: 'AI',
+      hint: 'Ask about your tasks, stats, or planning.',
+      placeholder: 'Type a message...',
+      send: 'Send',
+      thinking: 'Thinking...',
+      sendFailed: 'Send failed.',
+    },
     settings: {
       account: 'Account',
       security: 'Security',
@@ -218,6 +228,16 @@ const translations = {
       stopBeforeDone: '当前有进行中的计时，请先停止计时后再标记任务为已完成。',
       skeletonNote: '页面骨架阶段：计时结束会弹窗提示；后续可对接 `/api/timer/*` 写入记录。',
       unselected: '无任务',
+    },
+    ai: {
+      title: 'AI 助手',
+      openLabel: '打开 AI 助手',
+      iconAlt: 'AI',
+      hint: '可以问我任务统计、计划拆解、学习安排等。',
+      placeholder: '输入消息...',
+      send: '发送',
+      thinking: '思考中...',
+      sendFailed: '发送失败。',
     },
     settings: {
       account: '账号',
