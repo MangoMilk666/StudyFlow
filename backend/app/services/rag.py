@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+"""RAG（检索增强生成）相关：为每个用户构建 Retriever。
+
+本模块会把用户的 tasks/modules 组织成“可检索的文本片段”，写入本地向量库（Chroma）。
+AI 对话时（/api/ai/chat）会使用 Retriever 检索到的片段作为上下文，帮助回答“和我的任务有关”的问题。
+
+注意：
+- 未配置 OPENAI_API_KEY 时直接返回 None，这意味着 AI/RAG 功能关闭，但不影响其它业务接口。
+- 这里使用本地 Chroma 持久化（CHROMA_PERSIST_DIR），方便开发/演示，无需外部向量数据库。
+"""
+
 from typing import Any
 
 from app.config import get_settings
@@ -15,13 +25,16 @@ async def build_user_documents(user_id: str) -> list[dict[str, Any]]:
     - 作为向量库检索的上下文来源
     """
 
+    # get_db_checked 会在 Mongo 未就绪时抛出 MongoNotReadyError（由上层统一转成 ApiError）
     db = await get_db_checked()
     user_oid = None
     try:
         from bson import ObjectId
 
+        # userId 在 Mongo 中是 ObjectId；这里做一次兼容转换
         user_oid = ObjectId(user_id)
     except Exception:
+        # 若转换失败，则按字符串兜底（用于兼容历史数据/测试数据）
         user_oid = user_id
 
     tasks = await db.tasks.find({"userId": user_oid}).to_list(length=None)
@@ -31,6 +44,7 @@ async def build_user_documents(user_id: str) -> list[dict[str, Any]]:
     for m in modules:
         docs.append(
             {
+                # id 用于向量库中做幂等写入：同一个模块重复 add 时会覆盖或跳过
                 "id": f"module:{oid_str(m.get('_id'))}",
                 "text": f"Module: {m.get('name','')}\nDescription: {m.get('description','')}",
                 "metadata": {"type": "module", "moduleId": oid_str(m.get("_id"))},
@@ -39,6 +53,7 @@ async def build_user_documents(user_id: str) -> list[dict[str, Any]]:
     for t in tasks:
         docs.append(
             {
+                # 对任务：把常用字段拼成一段可读文本，方便语义检索命中
                 "id": f"task:{oid_str(t.get('_id'))}",
                 "text": "\n".join(
                     [
@@ -72,6 +87,7 @@ async def get_user_retriever(user_id: str):
     if not settings.OPENAI_API_KEY:
         return None
 
+    # OpenAIEmbeddings：把文本转为向量；Chroma：本地向量库（可持久化到目录）
     from langchain_openai import OpenAIEmbeddings
     from langchain_community.vectorstores import Chroma
 
@@ -89,8 +105,11 @@ async def get_user_retriever(user_id: str):
         metadatas = [d["metadata"] for d in docs]
         ids = [d["id"] for d in docs]
         try:
+            # add_texts 可能因为已存在相同 id、或 Chroma 状态异常而报错。
+            # 这里选择“尽量不影响对话主流程”：失败则继续使用现有向量库内容。
             vectorstore.add_texts(texts=texts, metadatas=metadatas, ids=ids)
         except Exception:
             pass
 
+    # as_retriever：返回一个 Retriever 对象，后续可用 query 检索最相关的 k 条文本片段
     return vectorstore.as_retriever(search_kwargs={"k": 6})

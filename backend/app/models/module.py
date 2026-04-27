@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""模块（课程/分类）相关 Pydantic 模型。"""
+
 from pydantic import BaseModel, ConfigDict, Field
 
 

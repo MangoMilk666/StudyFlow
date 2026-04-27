@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+"""MOCK_MODE 路由（内存版 API）。
+
+目的：
+- 在没有 MongoDB 的情况下，也能让前端完整跑通（登录/任务/模块/计时等）
+- 字段/状态码尽量复刻旧 Express mock.js 的行为，减少前端适配成本
+
+注意：这里的数据都在内存 state 里，重启服务会丢失。
+"""
+
 import random
 import time
 from datetime import datetime, timezone

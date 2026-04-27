@@ -1,5 +1,16 @@
 from __future__ import annotations
 
+"""MongoDB 连接管理（motor）。
+
+本项目使用 motor（异步 MongoDB 驱动）：
+- AsyncIOMotorClient：底层连接池对象，建议全局单例复用
+- AsyncIOMotorDatabase：按库名切换后的数据库句柄
+
+这里封装了：
+- init_mongo/close_mongo：生命周期管理
+- ping_mongo/get_db_checked：联调友好，快速失败并给出可读错误
+"""
+
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 
 from app.config import get_settings

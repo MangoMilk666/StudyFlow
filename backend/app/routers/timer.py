@@ -1,3 +1,14 @@
+"""计时（番茄钟）相关路由（/api/timer/*）。
+
+当前实现思路：
+- /start：只返回 startTime（不落库），前端负责开始倒计时
+- /stop：落库一条 timerlogs 记录，并把本次 duration（秒）换算成分钟累加到 tasks.timeSpent
+
+字段约定：
+- timerlogs.duration：秒（int）
+- timerlogs.status：completed（完整 25min）或 interrupted（中途停止）
+"""
+
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Body, Depends

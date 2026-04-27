@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+"""Canvas LMS 客户端（与 Canvas API 通信的最小封装）。
+
+这里的代码尽量保持“薄”：只负责
+- 读取配置并生成鉴权 header
+- 调用 Canvas 的 REST API（courses / assignments）
+- 把作业描述中的 HTML 清洗为纯文本（便于落库和检索）
+
+更复杂的业务逻辑（例如“把作业映射成任务、去重、更新数据库”）放在 router/service 层完成。
+"""
+
 import re
 
 import httpx

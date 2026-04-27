@@ -1,3 +1,15 @@
+"""应用配置（Settings）。
+
+这里集中管理后端运行所需的环境变量与默认值，例如：
+- MongoDB 连接串
+- JWT 密钥/算法/过期时间
+- Canvas / OpenAI / Chroma 等可选能力的配置
+- CORS 允许来源
+
+在 FastAPI 中通常会把配置封装成一个 Settings 类，并通过 get_settings() 提供单例，
+以避免每次请求都重复解析环境变量。
+"""
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

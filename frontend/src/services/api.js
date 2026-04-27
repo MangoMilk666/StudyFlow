@@ -2,6 +2,17 @@ import axios from 'axios'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 const LS_TOKEN_KEY = 'sf_token_v1'
+const LS_USER_KEY = 'sf_user_v1'
+
+function redirectToAuthIfNeeded() {
+  try {
+    const path = window.location?.pathname || ''
+    if (path.startsWith('/auth')) return
+    window.location.assign('/auth')
+  } catch {
+    // ignore
+  }
+}
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -20,6 +31,7 @@ apiClient.interceptors.request.use(
     const isHealth = url === '/health'
 
     if (!token && !isAuth && !isHealth) {
+      redirectToAuthIfNeeded()
       return Promise.reject(new Error('AUTH_REQUIRED'))
     }
 
@@ -31,6 +43,23 @@ apiClient.interceptors.request.use(
   },
   (error) => Promise.reject(error)
 );
+
+apiClient.interceptors.response.use(
+  (resp) => resp,
+  (error) => {
+    const status = error?.response?.status
+    if (status === 401) {
+      try {
+        localStorage.removeItem(LS_TOKEN_KEY)
+        localStorage.removeItem(LS_USER_KEY)
+      } catch {
+        // ignore
+      }
+      redirectToAuthIfNeeded()
+    }
+    return Promise.reject(error)
+  }
+)
 
 // Auth API
 export const authAPI = {

@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+"""MongoDB 相关工具函数。
+
+motor/bson 会使用 ObjectId 作为主键类型：
+- to_object_id：把字符串转成 ObjectId
+- oid_str：把 ObjectId/任意值转成可 JSON 序列化的字符串
+- serialize_datetime：把 datetime 转成 ISO 字符串（便于返回给前端）
+"""
+
 from bson import ObjectId
 
 
@@ -20,4 +28,3 @@ def serialize_datetime(value):
         return value.isoformat()
     except Exception:
         return value
-

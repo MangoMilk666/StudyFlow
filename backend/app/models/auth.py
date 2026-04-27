@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""认证相关 Pydantic 模型（请求/响应）。
+
+这些模型用于：
+- FastAPI 自动解析请求 JSON -> Python 对象
+- FastAPI/路由层把 Python 对象 -> JSON 返回给前端
+"""
+
 from pydantic import BaseModel, ConfigDict, Field
 
 

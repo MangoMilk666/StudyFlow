@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+"""统一错误结构。
+
+为了保持与旧版 Express 后端兼容，本项目所有业务错误都尽量返回：
+  {"error": "<message>"}
+
+做法：
+- 定义 ApiError（携带 status_code/message）
+- 在 main.py 注册全局异常处理器 api_error_handler
+"""
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 

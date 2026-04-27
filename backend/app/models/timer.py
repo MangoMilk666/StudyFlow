@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""计时（番茄钟）相关 Pydantic 模型。"""
+
 from pydantic import BaseModel, ConfigDict
 
 

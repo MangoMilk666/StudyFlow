@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+"""AI 路由（/api/ai/*）。
+
+本文件提供一个最小但可扩展的 AI 对话入口：
+- 路由：POST /api/ai/chat
+- 能力：LangGraph ReAct Agent（LLM + 工具调用）
+- 工具：任务统计 /（预留）Canvas 同步 /（可选）RAG 检索上下文
+
+设计取舍：
+- FastAPI 通过 Depends(get_current_user) 注入“当前登录用户”，用于做权限隔离。
+- tools 是“可被模型调用的函数”。模型会在需要信息时主动调用，再把工具结果组织成最终回复。
+- RAG（检索增强生成）是可选能力：没配置 OPENAI_API_KEY 时直接 503，不影响其它业务 API。
+"""
+
 import json
 from typing import Any
 
@@ -17,6 +30,13 @@ router = APIRouter()
 
 
 def _history_to_messages(history: list[dict[str, Any]] | None):
+    """把前端传入的 history（role/content 列表）转换为 LangChain messages。
+
+    - role=assistant|ai -> AIMessage
+    - role=user|human -> HumanMessage
+    - 不认识的 role 会跳过
+    - 任何导入/转换失败会返回空列表（不阻断主流程）
+    """
     if not history:
         return []
     try:
@@ -36,6 +56,14 @@ def _history_to_messages(history: list[dict[str, Any]] | None):
 
 
 async def _get_task_stats(user_id: str) -> dict[str, Any]:
+    """给 Agent 工具使用：读取当前用户的任务统计信息。
+
+    返回字段说明：
+    - total：任务总数
+    - done：已完成任务数（status == "Done"）
+    - byStatus：按 status 分组的数量统计
+    - totalTimeSpentMinutes：tasks.timeSpent（分钟）总和
+    """
     try:
         db = await get_db_checked()
     except MongoNotReadyError:
@@ -88,6 +116,7 @@ async def chat(
         raise ApiError(400, "message required")
 
     if not settings.OPENAI_API_KEY:
+        # 选择显式报错而不是静默降级：避免用户以为 AI 可用但一直“无响应”
         raise ApiError(503, "OpenAI not configured: missing OPENAI_API_KEY")
 
     try:
@@ -101,13 +130,21 @@ async def chat(
 
     @tool
     async def get_task_stats() -> str:
-        """Get the current user's task completion stats as JSON."""
+        """工具：获取当前用户任务统计（JSON 字符串）。
+
+        工具的返回值统一用字符串，便于 Agent 将其纳入对话上下文。
+        """
 
         return json.dumps(await _get_task_stats(user_id))
 
     @tool
     async def sync_canvas_assignments(courseIds: list[str] | None = None) -> str:
-        """Placeholder for syncing Canvas assignments; returns a simulated result."""
+        """工具：同步 Canvas 作业（预留）。
+
+        说明：
+        - 当前版本只返回模拟结果，便于演示 Agent 的“工具调用”能力。
+        - 未来可在这里接 app/services/canvas_client.py 实现真实同步。
+        """
 
         return json.dumps({"ok": True, "created": 0, "updated": 0, "skipped": 0, "courseIds": courseIds or []})
 
@@ -117,7 +154,11 @@ async def chat(
     if retriever is not None:
         @tool
         async def search_user_context(query: str) -> str:
-            """Search the user's tasks/modules for relevant context."""
+            """工具：RAG 检索用户上下文（tasks/modules）。
+
+            - retriever 由 app/services/rag.py 构建（Chroma + OpenAIEmbeddings）
+            - 返回拼接后的文本片段，供 Agent 参考
+            """
 
             try:
                 if hasattr(retriever, "aget_relevant_documents"):
@@ -137,6 +178,8 @@ async def chat(
 
     llm = ChatOpenAI(api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_MODEL, temperature=0)
 
+    # create_react_agent 会构建一个“可调用工具”的 Agent Graph。
+    # 输入 state: {"messages": [...] }，输出 state 仍包含 messages（含工具调用与最终回复）。
     graph = create_react_agent(
         llm,
         tools,
@@ -147,6 +190,7 @@ async def chat(
         from langchain_core.messages import HumanMessage
 
         msgs = [*_history_to_messages(history), HumanMessage(content=message)]
+        # ainvoke 是异步调用：模型可能在中间触发工具调用，再继续推理。
         state = await graph.ainvoke({"messages": msgs})
         messages = state.get("messages") or []
         last = messages[-1] if messages else None

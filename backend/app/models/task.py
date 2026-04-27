@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+"""任务相关 Pydantic 模型。
+
+说明：
+- TaskOut 用于返回给前端（字段名尽量兼容旧 Express）
+- TaskCreateRequest/TaskUpdateRequest 用于解析请求体
+- 这里包含 subtasks/source 等扩展字段（例如 Canvas 同步）
+"""
+
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field

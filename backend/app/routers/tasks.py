@@ -1,3 +1,18 @@
+"""任务相关路由（/api/tasks/*）。
+
+核心职责：
+- 任务 CRUD（list/create/get/update/delete）
+- 状态流转（PATCH /:id/status）
+- 子任务追加（POST /:id/subtask）
+
+实现要点：
+- 所有接口都通过 Depends(get_current_user) 做鉴权，并按 userId 过滤数据
+- create/update 支持 moduleName：
+  - 如果只传 moduleName（未传 module ObjectId），会自动在 modules 集合里 upsert 并绑定 module
+- createdAt/updatedAt 支持由前端传入“设备时间”：
+  - 若传入无时区时间，会按服务器本地时区补齐再转 UTC，减少跨时区联调困惑
+"""
+
 from datetime import datetime, timezone
 import re
 

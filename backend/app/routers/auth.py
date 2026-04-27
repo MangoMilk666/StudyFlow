@@ -1,3 +1,14 @@
+"""认证相关路由（/api/auth/*）。
+
+提供：
+- POST /register：注册，写入 users 集合并签发 JWT
+- POST /login：登录，校验密码并签发 JWT
+- PATCH /email：更新邮箱（需要 Bearer JWT）
+
+说明：
+- 本项目为了兼容旧 Express 版，返回结构统一为 {token, user:{...}} 或 {"error": "..."}。
+"""
+
 from datetime import datetime, timezone
 
 from app.deps import get_current_user

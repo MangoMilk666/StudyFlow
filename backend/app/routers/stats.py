@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+"""统计相关路由（/api/stats/*）。
+
+提供两类统计：
+- /summary：统计页需要的四象限数据（完成/未完成、按模块耗时、Top 耗时任务、趋势）
+  - 另外增加“番茄钟维度”的汇总：focusMinutes / pomodorosCompleted
+- /task/{taskId}：某个任务的番茄钟统计（仅统计 completed 的 timerlogs）
+
+实现要点：
+- 使用 MongoDB aggregate 做分组统计（尽量减少 Python 端计算与 IO）
+- 对历史脏数据做容错：$convert / onError / onNull，避免聚合直接 500
+- 统计“按天”时使用本地时区（timezone 参数），避免用户看到的日期与实际不一致
+"""
+
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query

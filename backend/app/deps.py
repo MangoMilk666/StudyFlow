@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+"""FastAPI 依赖（Dependencies）。
+
+在 FastAPI 中，Depends() 是“把通用逻辑提取成可复用组件”的方式。
+本文件目前最核心的依赖是 get_current_user：
+- 从请求头 Authorization: Bearer <token> 解析 JWT
+- 校验签名与过期时间
+- 失败统一抛出 ApiError(401)
+"""
+
 from fastapi import Header
 
 from app.errors import ApiError

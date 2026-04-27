@@ -1,5 +1,19 @@
 from __future__ import annotations
 
+"""FastAPI 应用入口。
+
+你可以把这个文件理解为 Express 的 server.js：
+- 创建 app
+- 注册中间件（CORS 等）
+- 注册全局错误处理
+- 挂载各业务路由（/api/auth, /api/tasks, /api/timer, /api/stats, /api/ai ...）
+- 管理生命周期：启动时初始化 Mongo，退出时关闭连接
+
+额外说明：
+- FastAPI 的 lifespan 类似“启动/关闭钩子”，适合做数据库连接初始化。
+- MOCK_MODE 用于无 Mongo 的情况下跑一套内存 mock API，方便联调前端。
+"""
+
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import logging
@@ -51,7 +65,7 @@ def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
 
     app.add_exception_handler(ApiError, api_error_handler)
-
+    # allow CORS
     origins = [o.strip() for o in (settings.CORS_ORIGINS or "").split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,

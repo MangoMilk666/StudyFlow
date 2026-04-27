@@ -1,3 +1,14 @@
+"""模块（课程/分类）相关路由（/api/modules/*）。
+
+模块用于对任务做归类（moduleName / module ObjectId）：
+- GET：列出当前用户的模块列表
+- POST：创建模块
+- PUT：更新模块
+- DELETE：删除模块
+
+注意：所有接口都按 userId 过滤，避免跨用户访问。
+"""
+
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, Depends

@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+"""安全相关：密码哈希与 JWT。
+
+本项目后端的认证链路：
+- 注册/登录：使用 bcrypt（passlib）存储与校验密码
+- 登录成功：签发 JWT（python-jose）
+- 业务接口：通过 deps.get_current_user 解析 Authorization: Bearer <token>
+"""
+
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
