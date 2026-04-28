@@ -37,6 +37,7 @@ router = APIRouter()
 def _pick_courses(all_courses: list[dict], course_ids) -> list[dict]:
     ids = [str(x) for x in (course_ids or [])] if isinstance(course_ids, list) else []
     if not ids:
+        # 不传 courseIds 时默认全量同步/预览，保持前端交互简单
         return all_courses
     return [c for c in all_courses if str(c.get("id")) in ids]
 
@@ -76,6 +77,7 @@ async def get_courses(current_user: dict = Depends(get_current_user)):
         async with httpx.AsyncClient(
             base_url=canvas_base_url(),
             headers=_get_auth_headers(),
+            # Canvas 接口通常很快返回；超时设短可以避免 UI 长时间卡住
             timeout=8.0,
         ) as client:
             courses = await list_courses(client)
@@ -124,6 +126,7 @@ async def preview_assignments(
                     course_id = str(course.get("id") or "")
                     title = str(a.get("name") or "").strip()
                     if not assignment_id or not course_id or not title:
+                        # 关键字段缺失的作业直接跳过：避免把“空标题/空 id”写进前端列表
                         continue
                     out.append(
                         {
@@ -187,6 +190,7 @@ async def sync_assignments(
                         skipped.append({"courseId": course_id, "assignmentId": assignment_id})
                         continue
 
+                    # Canvas description 是 HTML，这里转换成纯文本以便前端展示/全文检索（RAG）都更友好
                     description = html_to_text(a.get("description"))
                     deadline = parse_datetime(a.get("due_at"))
                     unlock_at = parse_datetime(a.get("unlock_at"))
@@ -219,9 +223,11 @@ async def sync_assignments(
                     )
 
                     if existing:
+                        # 幂等更新：重复同步不会产生重复任务，只更新标题/截止日期等字段
                         await db.tasks.update_one({"_id": existing.get("_id")}, {"$set": update_doc})
                         updated += 1
                     else:
+                        # 新增任务：保持默认字段与手动创建一致（timeSpent/subtasks/status/priority）
                         now = datetime.now(timezone.utc)
                         await db.tasks.insert_one(
                             {

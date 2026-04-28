@@ -41,6 +41,7 @@ def init_mongo() -> None:
     settings = get_settings()
     mongo.client = AsyncIOMotorClient(
         settings.MONGO_URI,
+        # 把超时设短：联调时如果 Mongo 没启动/地址错，不要卡住整个请求
         serverSelectionTimeoutMS=1500,
         connectTimeoutMS=1500,
     )
@@ -68,8 +69,10 @@ async def ping_mongo() -> None:
     """
 
     if mongo.client is None:
+        # 允许在首次请求时“懒初始化”，避免 import 阶段就强依赖 Mongo
         init_mongo()
     try:
+        # ping 是最轻量的连通性探测，比随便 find/aggregate 更快定位“连接不上”
         await mongo.client.admin.command("ping")
         mongo.ready = True
         mongo.last_error = None
@@ -88,6 +91,7 @@ def get_db() -> AsyncIOMotorDatabase:
 
     settings = get_settings()
     if mongo.client is None:
+        # 与 ping_mongo 保持一致：client 为空时再初始化
         init_mongo()
 
     if settings.MONGO_DB:
@@ -95,8 +99,10 @@ def get_db() -> AsyncIOMotorDatabase:
 
     default_db = mongo.client.get_default_database()
     if default_db is not None:
+        # 连接串里带 db 名称时（mongodb://.../studyflow），motor 能拿到 default database
         return default_db
 
+    # 兜底：没有 default database 时，用固定库名（与旧 Express 逻辑一致）
     return mongo.client["studyflow"]
 
 
@@ -113,5 +119,6 @@ async def get_db_checked() -> AsyncIOMotorDatabase:
     try:
         await ping_mongo()
     except Exception as e:
+        # 把底层异常包装成“可被路由捕获”的业务异常，避免返回一坨 motor 堆栈
         raise MongoNotReadyError(mongo.last_error or str(e))
     return get_db()

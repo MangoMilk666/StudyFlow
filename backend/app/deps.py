@@ -23,20 +23,23 @@ async def get_current_user(authorization: str | None = Header(default=None)) -> 
     - 成功：返回 payload 中的 userId/email
     """
 
+    # 只接受 Bearer token：保持与前端 axios interceptor 的约定一致
     if not authorization or not authorization.startswith("Bearer "):
         raise ApiError(401, "Unauthorized")
 
+    # split(" ", 1) 可避免 header 里出现多余空格时解析错误
     token = authorization.split(" ", 1)[1].strip()
     if not token:
         raise ApiError(401, "Unauthorized")
 
     try:
-        payload = decode_token(token)
+        # decode_token 内部会校验签名与 exp，任何失败都统一抛 UnauthorizedError
     except UnauthorizedError:
         raise ApiError(401, "Unauthorized")
 
     user_id = payload.get("userId")
     email = payload.get("email")
+    # payload 缺字段也视为未授权：避免“伪造 token 但缺关键字段”绕过后续逻辑
     if not user_id or not email:
         raise ApiError(401, "Unauthorized")
 

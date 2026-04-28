@@ -72,8 +72,10 @@ async def get_stats_summary(
     current_user: dict = Depends(get_current_user),
 ):
     days = _range_days(range)
+    # 用本地时区做“按天统计”：否则用户会看到日期偏移（尤其是 UTC+8 等时区）
     now_local = datetime.now().astimezone()
     tz_str = _tz_offset_str(now_local)
+    # 从本地当天 00:00 开始统计，再转换为 UTC 去匹配 Mongo 里存的 UTC 时间
     start_local = (now_local - timedelta(days=max(days - 1, 0))).replace(hour=0, minute=0, second=0, microsecond=0)
     start_utc = start_local.astimezone(timezone.utc)
     now_utc = now_local.astimezone(timezone.utc)
@@ -85,18 +87,22 @@ async def get_stats_summary(
 
     user_oid = to_object_id(current_user["userId"])
 
+    # 这里用 count_documents 而不是 find+len：避免把数据拉到 Python（更快更省内存）
     total = await db.tasks.count_documents({"userId": user_oid})
     done = await db.tasks.count_documents({"userId": user_oid, "status": {"$in": ["Done", "done"]}})
     undone = max(int(total) - int(done), 0)
 
+    # 番茄钟维度：timerlogs 只累计 completed（自然完成的 25min），不中断也能统计“完成次数”
     focus_agg = await db.timerlogs.aggregate(
         [
             {"$match": {"userId": user_oid, "status": "completed"}},
             {
                 "$addFields": {
+                    # sessionDate 可能被写成 string/null：统一转成 date，避免聚合直接报错
                     "sessionDateSafe": {
                         "$convert": {"input": "$sessionDate", "to": "date", "onError": {"$toDate": "$_id"}, "onNull": {"$toDate": "$_id"}}
                     },
+                    # duration 统一转 int：避免出现小数/字符串导致 $sum 报错
                     "durationSafe": {"$convert": {"input": "$duration", "to": "int", "onError": 0, "onNull": 0}},
                 }
             },
@@ -136,6 +142,7 @@ async def get_stats_summary(
             ]
         ).to_list(length=None)
     except Exception as e:
+        # 这里把 motor 的异常信息原样带出：便于你在联调时快速定位聚合 pipeline 的问题点
         raise ApiError(500, f"统计数据聚合失败：{e}")
 
     module_time_spent = [
@@ -144,6 +151,7 @@ async def get_stats_summary(
 
     top_tasks = (
         await db.tasks.find({"userId": user_oid})
+        # Top5 直接按 timeSpent 排序：依赖 tasks.timeSpent 在 /api/timer/stop 时累计维护
         .sort("timeSpent", -1)
         .limit(5)
         .to_list(length=5)
@@ -168,6 +176,7 @@ async def get_stats_summary(
             },
             {
                 "$addFields": {
+                    # updatedAt 用于 Done 趋势：手动改状态/同步更新都能覆盖
                     "updatedAtSafe": {
                         "$convert": {
                             "input": "$updatedAt",
@@ -190,6 +199,7 @@ async def get_stats_summary(
             {"$match": {"userId": user_oid}},
             {
                 "$addFields": {
+                    # createdAt 用于 Created 趋势：注意要按本地 timezone 分组，否则会出现“今天创建被算到昨天”的错觉
                     "createdAtSafe": {
                         "$convert": {
                             "input": "$createdAt",

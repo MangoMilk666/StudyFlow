@@ -37,6 +37,7 @@ def _map_llm_error(e: Exception) -> ApiError | None:
     - 因此这里统一返回 503/502 等更合适的状态码，同时给出可读消息。
     """
 
+    # 异常对象的结构在不同 SDK/版本里可能不同，因此同时用 str(e) + status_code/status 做兼容解析
     msg = str(e)
     status = getattr(e, "status_code", None) or getattr(e, "status", None)
     try:
@@ -45,6 +46,7 @@ def _map_llm_error(e: Exception) -> ApiError | None:
         status = None
 
     lowered = msg.lower()
+    # 这里的 401 是“上游模型服务”的 401，不是我们的 JWT 401（否则会触发前端登出）
     if status == 401 or "invalid_api_key" in lowered or "incorrect api key" in lowered:
         return ApiError(503, "OpenAI API Key 无效：请检查 OPENAI_API_KEY（或 OPENAI_BASE_URL 是否匹配）")
     if status == 429 or "rate limit" in lowered or "quota" in lowered:
@@ -136,6 +138,7 @@ async def chat(
     - 输出：{ reply }
     """
 
+    # settings 做成单例：避免每个请求都重复读取/解析环境变量
     settings = get_settings()
     message = str((payload or {}).get("message") or "").strip()
     history = (payload or {}).get("history")
@@ -147,12 +150,14 @@ async def chat(
         raise ApiError(503, "LLM not configured: missing OPENAI_API_KEY (or OPENAI_BASE_URL for local providers)")
 
     try:
+        # 这些依赖是“可选能力”：没装 langchain 相关包时不影响其它业务 API
         from langchain_core.tools import tool
         from langchain_openai import ChatOpenAI
         from langgraph.prebuilt import create_react_agent
     except Exception as e:
         raise ApiError(500, f"LangChain import error: {e}")
 
+    # user_id 只来自 JWT，不信任前端传参，用于做权限隔离（工具查询时只查自己的数据）
     user_id = current_user["userId"]
 
     @tool
@@ -162,6 +167,7 @@ async def chat(
         工具的返回值统一用字符串，便于 Agent 将其纳入对话上下文。
         """
 
+        # 工具返回统一用字符串：避免 Agent 在不同工具之间处理“结构化对象”的兼容问题
         return json.dumps(await _get_task_stats(user_id))
 
     @tool
@@ -177,6 +183,7 @@ async def chat(
 
     tools = [get_task_stats, sync_canvas_assignments]
 
+    # RAG 是可选增强：retriever 构建失败/不可用时，仍然保留基础对话与工具能力
     retriever = await get_user_retriever(user_id)
     if retriever is not None:
         @tool
@@ -187,6 +194,7 @@ async def chat(
             - 返回拼接后的文本片段，供 Agent 参考
             """
 
+            # 兼容不同 retriever 实现：有的提供 async API，有的只有 sync API
             try:
                 if hasattr(retriever, "aget_relevant_documents"):
                     docs = await retriever.aget_relevant_documents(query)
@@ -203,16 +211,19 @@ async def chat(
 
         tools.append(search_user_context)
 
+    # Ollama/OpenAI-compatible provider 往往不要求真实 key，但 SDK 仍可能要求传 api_key 这个参数
     llm_kwargs: dict[str, Any] = {
         "api_key": settings.OPENAI_API_KEY or "ollama",
         "model": settings.OPENAI_MODEL,
         "temperature": 0,
     }
     if getattr(settings, "OPENAI_BASE_URL", None):
+        # 允许切到本地/国内兼容平台（例如 Ollama 的 /v1）
         llm_kwargs["base_url"] = settings.OPENAI_BASE_URL
     try:
         llm = ChatOpenAI(**llm_kwargs)
     except TypeError:
+        # 兼容旧版本 SDK：不支持 base_url 参数时就忽略（避免启动直接崩）
         llm_kwargs.pop("base_url", None)
         llm = ChatOpenAI(**llm_kwargs)
 
@@ -227,11 +238,13 @@ async def chat(
     try:
         from langchain_core.messages import HumanMessage
 
+        # 把 history 交给模型：让它“记住”上下文（否则每次都是单轮问答）
         msgs = [*_history_to_messages(history), HumanMessage(content=message)]
         # ainvoke 是异步调用：模型可能在中间触发工具调用，再继续推理。
         state = await graph.ainvoke({"messages": msgs})
         messages = state.get("messages") or []
         last = messages[-1] if messages else None
+        # ReAct agent 的最终回复通常在最后一条 AIMessage 里
         reply = getattr(last, "content", None) if last is not None else None
         return {"reply": reply or ""}
     except Exception as e:

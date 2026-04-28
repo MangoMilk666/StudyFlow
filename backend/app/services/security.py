@@ -47,12 +47,14 @@ def create_access_token(*, user_id: str, email: str) -> str:
     """签发 JWT（payload 字段与旧 Express 保持一致：userId/email/iat/exp）。"""
 
     settings = get_settings()
+    # 用 UTC 写入 iat/exp：避免服务器时区变化导致 token 提前/延后过期
     now = datetime.now(timezone.utc)
     exp = now + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
 
     payload = {
         "userId": user_id,
         "email": email,
+        # 统一存 timestamp（int）：跨语言（Express/Python）解析更稳定
         "iat": int(now.timestamp()),
         "exp": int(exp.timestamp()),
     }
@@ -71,6 +73,7 @@ def decode_token(token: str) -> dict:
 
     settings = get_settings()
     try:
+        # jose 会校验签名与 exp（过期会抛 JWTError），上层统一转 401
         return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
     except JWTError as e:
         raise UnauthorizedError("Unauthorized") from e
