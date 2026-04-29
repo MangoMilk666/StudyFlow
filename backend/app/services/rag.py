@@ -13,7 +13,7 @@ AI 对话时（/api/ai/chat）会使用 Retriever 检索到的片段作为上下
 from typing import Any
 
 from app.config import get_settings
-from app.services.db import MongoNotReadyError, get_db_checked
+from app.services.db import get_db_checked
 from app.utils.mongo import oid_str
 
 
@@ -77,6 +77,28 @@ async def build_user_documents(user_id: str) -> list[dict[str, Any]]:
     return docs
 
 
+def _create_embeddings(settings):
+    from langchain_openai import OpenAIEmbeddings
+
+    emb_kwargs: dict[str, Any] = {"api_key": settings.OPENAI_API_KEY or "ollama"}
+    if getattr(settings, "OPENAI_BASE_URL", None):
+        emb_kwargs["base_url"] = settings.OPENAI_BASE_URL
+    if getattr(settings, "OPENAI_EMBED_MODEL", None):
+        emb_kwargs["model"] = settings.OPENAI_EMBED_MODEL
+    elif settings.OPENAI_API_KEY and not getattr(settings, "OPENAI_BASE_URL", None):
+        emb_kwargs["model"] = "text-embedding-3-small"
+
+    try:
+        return OpenAIEmbeddings(**emb_kwargs)
+    except TypeError:
+        emb_kwargs.pop("base_url", None)
+        try:
+            return OpenAIEmbeddings(**emb_kwargs)
+        except TypeError:
+            emb_kwargs.pop("model", None)
+            return OpenAIEmbeddings(**emb_kwargs)
+
+
 async def get_user_retriever(user_id: str):
     """为指定用户获取检索器（Retriever）。
 
@@ -90,19 +112,13 @@ async def get_user_retriever(user_id: str):
         return None
 
     # OpenAIEmbeddings：把文本转为向量；Chroma：本地向量库（可持久化到目录）
-    from langchain_openai import OpenAIEmbeddings
     from langchain_community.vectorstores import Chroma
 
-    emb_kwargs: dict[str, Any] = {"api_key": settings.OPENAI_API_KEY or "ollama"}
-    if getattr(settings, "OPENAI_BASE_URL", None):
-        # 兼容 OpenAI-compatible provider（例如 Ollama / 国内平台的 /v1）
-        emb_kwargs["base_url"] = settings.OPENAI_BASE_URL
     try:
-        embeddings = OpenAIEmbeddings(**emb_kwargs)
-    except TypeError:
-        # 兼容旧版本 SDK：不支持 base_url 参数时就忽略
-        emb_kwargs.pop("base_url", None)
-        embeddings = OpenAIEmbeddings(**emb_kwargs)
+        embeddings = _create_embeddings(settings)
+    except Exception:
+        return None
+
     collection_name = f"studyflow_{user_id}"
     vectorstore = Chroma(
         collection_name=collection_name,
@@ -121,7 +137,6 @@ async def get_user_retriever(user_id: str):
             vectorstore.add_texts(texts=texts, metadatas=metadatas, ids=ids)
         except Exception:
             pass
-
     # k 取 6：太少会漏掉相关上下文，太多会把无关内容塞进 prompt，反而影响回答质量
     # as_retriever：返回一个 Retriever 对象，后续可用 query 检索最相关的 k 条文本片段
     return vectorstore.as_retriever(search_kwargs={"k": 6})

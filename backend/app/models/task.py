@@ -19,7 +19,7 @@ class TaskSource(BaseModel):
     """任务来源信息。
 
     当前主要用于 Canvas 同步：
-    - type: "canvas"
+    - type: "canvas" / "ai"
     - courseId / assignmentId：用于幂等去重
     """
 

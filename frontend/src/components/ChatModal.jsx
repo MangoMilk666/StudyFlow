@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { aiAPI } from '../services/api'
+import { useAuth } from '../auth'
 
 function Inline({ text }) {
   const parts = []
@@ -203,13 +204,47 @@ function MarkdownView({ text }) {
 }
 
 export default function ChatModal({ open, onClose, t }) {
+  const { user } = useAuth()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [notice, setNotice] = useState(null)
+  const [hydrated, setHydrated] = useState(false)
   const listRef = useRef(null)
   const typingTimerRef = useRef(null)
+
+  const storageKey = useMemo(() => {
+    const userId = user?.userId ? String(user.userId) : ''
+    return userId ? `sf_ai_chat_history_v1:${userId}` : null
+  }, [user])
+
+  useEffect(() => {
+    if (!storageKey) {
+      setMessages([])
+      setHydrated(true)
+      return
+    }
+    try {
+      const raw = localStorage.getItem(storageKey)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) setMessages(parsed)
+      }
+    } catch (e) {
+    } finally {
+      setHydrated(true)
+    }
+  }, [storageKey])
+
+  useEffect(() => {
+    if (!hydrated) return
+    if (!storageKey) return
+    try {
+      const next = Array.isArray(messages) ? messages.slice(-100) : []
+      localStorage.setItem(storageKey, JSON.stringify(next))
+    } catch (e) {}
+  }, [hydrated, storageKey, messages])
 
   useEffect(() => {
     if (!open) return
@@ -327,14 +362,32 @@ export default function ChatModal({ open, onClose, t }) {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
           <h2 style={{ margin: 0 }}>{t('ai.title')}</h2>
-          <button
-            type="button"
-            className="btn"
-            style={{ padding: '6px 14px', fontSize: 14, background: '#f0f0f0' }}
-            onClick={onClose}
-          >
-            {t('common.cancel')}
-          </button>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button
+              type="button"
+              className="btn"
+              style={{ padding: '6px 14px', fontSize: 14, background: '#f0f0f0' }}
+              onClick={() => {
+                setMessages([])
+                if (storageKey) {
+                  try {
+                    localStorage.removeItem(storageKey)
+                  } catch (e) {
+                  }
+                }
+              }}
+            >
+              {t('ai.clear')}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              style={{ padding: '6px 14px', fontSize: 14, background: '#f0f0f0' }}
+              onClick={onClose}
+            >
+              {t('common.cancel')}
+            </button>
+          </div>
         </div>
 
         {notice ? (

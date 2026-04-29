@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+import re
+
 """AI 路由（/api/ai/*）。
 
 本文件提供一个最小但可扩展的 AI 对话入口：
@@ -23,7 +26,12 @@ from app.deps import get_current_user
 from app.errors import ApiError
 from app.services.db import MongoNotReadyError, get_db_checked
 from app.services.rag import get_user_retriever
-from app.utils.mongo import to_object_id
+from app.utils.datetime import parse_datetime
+from app.utils.mongo import oid_str, serialize_datetime, to_object_id
+from pymongo import ReturnDocument
+
+from app.models.module import ModuleOut
+from app.routers.tasks import _serialize_task
 
 
 router = APIRouter()
@@ -100,12 +108,14 @@ async def _get_task_stats(user_id: str) -> dict[str, Any]:
     user_oid = to_object_id(user_id)
     total = await db.tasks.count_documents({"userId": user_oid})
     done = await db.tasks.count_documents({"userId": user_oid, "status": "Done"})
+    # 查询不同状态的任务数量
     by_status = await db.tasks.aggregate(
         [
             {"$match": {"userId": user_oid}},
             {"$group": {"_id": "$status", "count": {"$sum": 1}}},
         ]
     ).to_list(length=None)
+    # 查询已经花费的总时长
     total_time = await db.tasks.aggregate(
         [
             {"$match": {"userId": user_oid}},
@@ -119,6 +129,149 @@ async def _get_task_stats(user_id: str) -> dict[str, Any]:
         "byStatus": {str(x.get("_id") or "Unknown"): int(x.get("count") or 0) for x in by_status},
         "totalTimeSpentMinutes": float((total_time[0].get("minutes") if total_time else 0) or 0),
     }
+
+async def _create_new_task(
+    user_id: str,
+    title: str,
+    priority: str | None = None,
+    deadline: str | None = None,
+    module: str | None = None,
+) -> dict[str, Any]:
+    """
+    给 Agent 工具使用：为当前用户新建任务记录。
+    """
+    title = (title or "").strip()
+    if not title:
+        raise ApiError(400, "title required")
+    try:
+        db = await get_db_checked()
+    except MongoNotReadyError:
+        raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+    now = datetime.now(timezone.utc)
+    created_at = now
+    updated_at = now
+
+    user_oid = to_object_id(user_id)
+    module_raw = (module or "").strip()
+    module_oid = None
+    module_name = ""
+
+    if module_raw:
+        # 按照传参名称检索module
+        if re.fullmatch(r"[0-9a-fA-F]{24}", module_raw):
+            candidate_oid = to_object_id(module_raw)
+            module_doc = await db.modules.find_one({"_id": candidate_oid, "userId": user_oid})
+            if not module_doc:
+                raise ApiError(400, "module not found")
+            module_oid = candidate_oid
+            module_name = str(module_doc.get("name") or "")
+        # 检索不到，自动创建一个module记录
+        else:
+            cleaned = module_raw
+            module_doc = await db.modules.find_one_and_update(
+                {"userId": user_oid, "name": {"$regex": f"^{re.escape(cleaned)}$", "$options": "i"}},
+                {
+                    "$setOnInsert": {
+                        "userId": user_oid,
+                        "name": cleaned,
+                        "colorCode": "#3f51b5",
+                        "description": "",
+                        "createdAt": created_at,
+                        "updatedAt": updated_at,
+                    }
+                },
+                upsert=True,
+                return_document=ReturnDocument.AFTER,
+            )
+            module_oid = module_doc.get("_id") if module_doc else None
+            module_name = str((module_doc or {}).get("name") or cleaned)
+
+    normalized_priority = (priority or "").strip().lower()
+    priority_value = "Medium"
+    if normalized_priority in {"low", "l"}:
+        priority_value = "Low"
+    elif normalized_priority in {"medium", "m"}:
+        priority_value = "Medium"
+    elif normalized_priority in {"high", "h"}:
+        priority_value = "High"
+
+    doc: dict = {
+        "userId": user_oid,
+        "title": title,
+        "description": "",
+        "priority": priority_value,
+        "deadline": parse_datetime(deadline),
+        "module": module_oid,
+        "moduleName": module_name,
+        "status": "To Do",
+        "source": {"type": "ai"},
+        "timeSpent": 0,
+        "subtasks": [],
+        "createdAt": created_at,
+        "updatedAt": updated_at,
+        "unlockAt": None,
+    }
+    doc = {k: v for k, v in doc.items() if v is not None or k in {"module", "deadline", "unlockAt"}}
+    result = await db.tasks.insert_one(doc)
+    created = await db.tasks.find_one({"_id": result.inserted_id})
+    created = created or {**doc, "_id": result.inserted_id}
+
+    mod_doc = None
+    if created.get("module") is not None:
+        module_doc = await db.modules.find_one({"_id": created.get("module")})
+        if module_doc:
+            mod_doc = ModuleOut(
+                _id=oid_str(module_doc.get("_id")),
+                userId=oid_str(module_doc.get("userId")),
+                name=str(module_doc.get("name") or ""),
+                colorCode=module_doc.get("colorCode"),
+                description=module_doc.get("description"),
+                createdAt=serialize_datetime(module_doc.get("createdAt")),
+                updatedAt=serialize_datetime(module_doc.get("updatedAt")),
+            ).model_dump(by_alias=True)
+    return _serialize_task(created, mod_doc)
+
+
+@router.get("/health")
+async def ai_health(current_user: dict = Depends(get_current_user)):
+    settings = get_settings()
+    user_id = current_user["userId"]
+
+    llm_configured = bool(settings.OPENAI_API_KEY or getattr(settings, "OPENAI_BASE_URL", None))
+    out: dict[str, Any] = {
+        "llmConfigured": llm_configured,
+        "openaiBaseUrl": getattr(settings, "OPENAI_BASE_URL", None),
+        "openaiModel": getattr(settings, "OPENAI_MODEL", None),
+        "openaiEmbedModel": getattr(settings, "OPENAI_EMBED_MODEL", None),
+        "chromaPersistDir": getattr(settings, "CHROMA_PERSIST_DIR", None),
+        "rag": {"enabled": False},
+    }
+    if not llm_configured:
+        return out
+
+    try:
+        retriever = await get_user_retriever(user_id)
+    except Exception as e:
+        out["rag"] = {"enabled": False, "error": str(e)}
+        return out
+
+    if retriever is None:
+        out["rag"] = {"enabled": False}
+        return out
+
+    try:
+        if hasattr(retriever, "aget_relevant_documents"):
+            docs = await retriever.aget_relevant_documents("studyflow")
+        else:
+            docs = retriever.get_relevant_documents("studyflow")
+        previews = []
+        for d in docs or []:
+            previews.append(str(getattr(d, "page_content", None) or str(d))[:160])
+        out["rag"] = {"enabled": True, "queryOk": True, "sampleCount": len(docs or []), "sample": previews[:3]}
+        return out
+    except Exception as e:
+        out["rag"] = {"enabled": True, "queryOk": False, "error": str(e)}
+        return out
 
 
 @router.post("/chat")
@@ -181,7 +334,28 @@ async def chat(
 
         return json.dumps({"ok": True, "created": 0, "updated": 0, "skipped": 0, "courseIds": courseIds or []})
 
-    tools = [get_task_stats, sync_canvas_assignments]
+    @tool
+    async def create_new_task(
+        title: str,
+        priority: str | None = None,
+        deadline: str | None = None,
+        module: str | None = None,
+    ) -> str:
+        """
+        工具函数：创建新的任务记录
+        和后端已经编写的接口逻辑一致
+        """
+        try:
+            task = await _create_new_task(user_id, title, priority, deadline, module)
+            return json.dumps({"ok": True, "task": task})
+        except ApiError as e:
+            return json.dumps({"ok": False, "error": e.message, "status": e.status_code})
+        except Exception as e:
+            return json.dumps({"ok": False, "error": str(e), "status": 500})
+
+
+
+    tools = [get_task_stats, sync_canvas_assignments, create_new_task]
 
     # RAG 是可选增强：retriever 构建失败/不可用时，仍然保留基础对话与工具能力
     retriever = await get_user_retriever(user_id)
@@ -232,7 +406,7 @@ async def chat(
     graph = create_react_agent(
         llm,
         tools,
-        prompt="You are StudyFlow AI. Use tools when helpful. Keep responses concise and actionable.",
+        prompt="You are StudyFlow AI. Use tools when helpful to answer questions or perform requested actions. Do not claim actions happened unless a tool call succeeded. Keep responses concise and actionable.",
     )
 
     try:
@@ -247,6 +421,8 @@ async def chat(
         # ReAct agent 的最终回复通常在最后一条 AIMessage 里
         reply = getattr(last, "content", None) if last is not None else None
         return {"reply": reply or ""}
+    except ApiError as e:
+        raise e
     except Exception as e:
         mapped = _map_llm_error(e)
         if mapped is not None:

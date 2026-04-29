@@ -92,6 +92,11 @@ def _serialize_task(doc: dict, module_doc: dict | None = None) -> dict:
     if module_value is None and doc.get("module") is not None:
         module_value = oid_str(doc.get("module"))
 
+    source_value = doc.get("source")
+    # 修复旧数据：如果 source 是字符串，就转换成 {"type": source}
+    if isinstance(source_value, str):
+        source_value = {"type": source_value}
+
     return TaskOut(
         _id=oid_str(doc.get("_id")),
         userId=oid_str(doc.get("userId")),
@@ -102,7 +107,7 @@ def _serialize_task(doc: dict, module_doc: dict | None = None) -> dict:
         deadline=serialize_datetime(doc.get("deadline")),
         module=module_value,
         moduleName=doc.get("moduleName"),
-        source=doc.get("source"),
+        source=source_value,
         timeSpent=doc.get("timeSpent"),
         subtasks=doc.get("subtasks"),
         createdAt=serialize_datetime(doc.get("createdAt")),
@@ -143,7 +148,7 @@ async def create_task(
     current_user: dict = Depends(get_current_user),
 ):
     """创建任务。
-
+x
     兼容 Express：title 必填，否则 400 {"error":"title required"}
     """
 

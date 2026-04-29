@@ -13,6 +13,7 @@ from fastapi import Header
 
 from app.errors import ApiError
 from app.services.security import UnauthorizedError, decode_token
+from app.utils.mongo import to_object_id
 
 
 async def get_current_user(authorization: str | None = Header(default=None)) -> dict:
@@ -34,6 +35,7 @@ async def get_current_user(authorization: str | None = Header(default=None)) -> 
 
     try:
         # decode_token 内部会校验签名与 exp，任何失败都统一抛 UnauthorizedError
+        payload = decode_token(token)
     except UnauthorizedError:
         raise ApiError(401, "Unauthorized")
 
@@ -41,6 +43,11 @@ async def get_current_user(authorization: str | None = Header(default=None)) -> 
     email = payload.get("email")
     # payload 缺字段也视为未授权：避免“伪造 token 但缺关键字段”绕过后续逻辑
     if not user_id or not email:
+        raise ApiError(401, "Unauthorized")
+
+    try:
+        to_object_id(str(user_id))
+    except Exception:
         raise ApiError(401, "Unauthorized")
 
     return {"userId": str(user_id), "email": str(email)}
