@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import re
 
+
 """AI 路由（/api/ai/*）。
 
 本文件提供一个最小但可扩展的 AI 对话入口：
@@ -109,6 +110,7 @@ async def _get_task_stats(user_id: str) -> dict[str, Any]:
     返回字段说明：
     - total：任务总数
     - done：已完成任务数（status == "Done"）
+    - byModuleDetail: 按任务归属的module和任务状态统计
     - byStatus：按 status 分组的数量统计
     - totalTimeSpentMinutes：tasks.timeSpent（分钟）总和
     """
@@ -133,10 +135,49 @@ async def _get_task_stats(user_id: str) -> dict[str, Any]:
             {"$group": {"_id": None, "minutes": {"$sum": "$timeSpent"}}},
         ]
     ).to_list(length=1)
+    # 查询归属于不同module的不同状态的任务数量
+    # 一般用户一次最多允许查询20个module，后续可更改
+    by_Module_and_Status = await db.tasks.aggregate([
+        {"$match": {"userId": user_oid}},
+        {   # 复合id分组
+            "$group": {
+                "_id": {
+                    "module": "$moduleName",
+                    "status": "$status"
+                },
+                "count": {"$sum": 1}
+            }
+        },
+        {
+            "$project": {
+                "_id": 0,
+                # 取别名，将_id.module, _id.status分别映射为module, status
+                "module": {"$ifNull": ["$_id.module", "Uncategorized"]},
+                "status": "$_id.status",
+                "count": 1
+            }
+        },
+        {"$sort": {"module": 1, "status": 1}}
+    ]).to_list(length=20)
+
+    # 处理复合分组后的 by_Module_and_Status, 嵌套字典
+    module_stats = {}
+    for item in by_Module_and_Status:
+        m_name = str(item.get("module") or "Uncategorized")
+        status = str(item.get("status") or "Unknown")
+        count = int(item.get("count") or 0)
+
+        # 如果模块名不在字典里，先初始化它
+        if m_name not in module_stats:
+            module_stats[m_name] = {}
+
+        # 填充对应状态的数量
+        module_stats[m_name][status] = count
 
     return {
         "total": total,
         "done": done,
+        "byModuleDetail": module_stats,
         "byStatus": {str(x.get("_id") or "Unknown"): int(x.get("count") or 0) for x in by_status},
         "totalTimeSpentMinutes": float((total_time[0].get("minutes") if total_time else 0) or 0),
     }
