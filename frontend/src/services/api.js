@@ -104,7 +104,7 @@ export const statsAPI = {
 }
 
 export const aiAPI = {
-  chat: (message, history) => apiClient.post('/ai/chat', { message, history }),
+  chat: (message, history) => apiClient.post('/ai/chat', { message, history, clientNow: new Date().toISOString() }),
 }
 
 export const canvasAPI = {

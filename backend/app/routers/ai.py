@@ -91,6 +91,17 @@ def _history_to_messages(history: list[dict[str, Any]] | None):
     except Exception:
         return []
 
+def _coerce_client_datetime(value: str | None, *, fallback: datetime) -> datetime:
+    dt = parse_datetime(value)
+    if dt is None:
+        return fallback
+    if dt.tzinfo is None:
+        local_tz = datetime.now().astimezone().tzinfo
+        if local_tz is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.replace(tzinfo=local_tz).astimezone(timezone.utc)
+    return dt.astimezone(timezone.utc)
+
 
 async def _get_task_stats(user_id: str) -> dict[str, Any]:
     """给 Agent 工具使用：读取当前用户的任务统计信息。
@@ -136,6 +147,9 @@ async def _create_new_task(
     priority: str | None = None,
     deadline: str | None = None,
     module: str | None = None,
+    *,
+    created_at: datetime | None = None,
+    updated_at: datetime | None = None,
 ) -> dict[str, Any]:
     """
     给 Agent 工具使用：为当前用户新建任务记录。
@@ -148,8 +162,8 @@ async def _create_new_task(
     except MongoNotReadyError:
         raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
     now = datetime.now(timezone.utc)
-    created_at = now
-    updated_at = now
+    created_at = created_at or now
+    updated_at = updated_at or created_at
 
     user_oid = to_object_id(user_id)
     module_raw = (module or "").strip()
@@ -295,6 +309,7 @@ async def chat(
     settings = get_settings()
     message = str((payload or {}).get("message") or "").strip()
     history = (payload or {}).get("history")
+    client_now_raw = (payload or {}).get("clientNow")
     if not message:
         raise ApiError(400, "message required")
 
@@ -312,6 +327,8 @@ async def chat(
 
     # user_id 只来自 JWT，不信任前端传参，用于做权限隔离（工具查询时只查自己的数据）
     user_id = current_user["userId"]
+    now = datetime.now(timezone.utc)
+    client_now = _coerce_client_datetime(str(client_now_raw) if client_now_raw is not None else None, fallback=now)
 
     @tool
     async def get_task_stats() -> str:
@@ -346,7 +363,15 @@ async def chat(
         和后端已经编写的接口逻辑一致
         """
         try:
-            task = await _create_new_task(user_id, title, priority, deadline, module)
+            task = await _create_new_task(
+                user_id,
+                title,
+                priority,
+                deadline,
+                module,
+                created_at=client_now,
+                updated_at=client_now,
+            )
             return json.dumps({"ok": True, "task": task})
         except ApiError as e:
             return json.dumps({"ok": False, "error": e.message, "status": e.status_code})

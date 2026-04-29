@@ -9,6 +9,7 @@ motor/bson 会使用 ObjectId 作为主键类型：
 """
 
 from bson import ObjectId
+from datetime import datetime, timezone
 
 
 def to_object_id(value: str) -> ObjectId:
@@ -25,6 +26,8 @@ def serialize_datetime(value):
     if value is None:
         return None
     try:
+        if isinstance(value, datetime) and value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
         return value.isoformat()
     except Exception:
         return value

@@ -4,7 +4,9 @@ import SettingsFab from './SettingsFab'
 import AIFab from './AIFab'
 import { useI18n } from '../i18n'
 import { useAuth } from '../auth'
-
+/**
+ * 顶部菜单栏组件
+ */
 export default function TopNav() {
   const { t } = useI18n()
   const { isAuthenticated } = useAuth()

@@ -318,13 +318,19 @@ async def delete_task(id: str, current_user: dict = Depends(get_current_user)):
         db = await get_db_checked()
     except MongoNotReadyError:
         raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
-    existing = await db.tasks.find_one({"_id": to_object_id(id)})
-    if not existing:
-        raise ApiError(404, "Task not found")
-    if oid_str(existing.get("userId")) != current_user["userId"]:
-        raise ApiError(403, "Forbidden")
+    try:
+        task_oid = to_object_id(id)
+    except Exception:
+        raise ApiError(400, "invalid task id")
 
-    await db.tasks.delete_one({"_id": to_object_id(id)})
+    user_oid = to_object_id(current_user["userId"])
+    result = await db.tasks.delete_one({"_id": task_oid, "userId": user_oid})
+    if result.deleted_count == 0:
+        existing = await db.tasks.find_one({"_id": task_oid})
+        if existing:
+            raise ApiError(403, "Forbidden")
+        raise ApiError(404, "Task not found")
+
     return {"message": "Task deleted successfully"}
 
 

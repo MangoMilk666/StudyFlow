@@ -97,6 +97,10 @@ function Inline({ text }) {
   return <>{parts}</>
 }
 
+/**
+ * Markdown Viewer
+ * Display markdown text effect on frontend screen
+ */
 function MarkdownView({ text }) {
   const input = String(text || '')
   const out = []
