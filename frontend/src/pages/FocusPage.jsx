@@ -15,7 +15,7 @@ function formatTime(seconds) {
 }
 
 export default function FocusPage() {
-  const { tasks, refresh, isAuthenticated } = useUnifiedTasks()
+  const { tasks, refresh, isAuthenticated, loading } = useUnifiedTasks()
   useAuth()
   const { t } = useI18n()
 
@@ -34,9 +34,13 @@ export default function FocusPage() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_FOCUS_TIMER_KEY)
-      if (!raw) return
+      if (!raw) {
+        return
+      }
       const parsed = JSON.parse(raw)
-      if (!parsed || typeof parsed !== 'object') return
+      if (!parsed || typeof parsed !== 'object') {
+        return
+      }
 
       const savedTimeLeft = Number(parsed.timeLeft)
       const savedRunning = !!parsed.isRunning
@@ -69,6 +73,8 @@ export default function FocusPage() {
   const selectableTasks = useMemo(() => tasks.filter((x) => x.status === 'todo' || x.status === 'in_progress'), [tasks])
 
   useEffect(() => {
+    if (!hydrated) return
+    if (loading) return
     if (!currentTaskId) return
     const stillSelectable = selectableTasks.some((x) => x.id === currentTaskId)
     if (stillSelectable) return
@@ -80,7 +86,7 @@ export default function FocusPage() {
     stopOnceRef.current = false
     runStartMsRef.current = null
     runBaseLeftRef.current = DEFAULT_SECONDS
-  }, [currentTaskId, selectableTasks])
+  }, [currentTaskId, hydrated, loading, selectableTasks])
 
   useEffect(() => {
     if (!isRunning) return
