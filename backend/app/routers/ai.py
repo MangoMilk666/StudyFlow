@@ -26,6 +26,7 @@ from app.config import get_settings
 from app.deps import get_current_user
 from app.errors import ApiError
 from app.services.db import MongoNotReadyError, get_db_checked
+from app.services.user_ai_config import get_user_ai_config
 from app.services.rag import get_user_retriever
 from app.utils.datetime import parse_datetime
 from app.utils.mongo import oid_str, serialize_datetime, to_object_id
@@ -354,9 +355,14 @@ async def chat(
     if not message:
         raise ApiError(400, "message required")
 
-    if not settings.OPENAI_API_KEY and not getattr(settings, "OPENAI_BASE_URL", None):
-        # 选择显式报错而不是静默降级：避免用户以为 AI 可用但一直“无响应”
-        raise ApiError(503, "LLM not configured: missing OPENAI_API_KEY (or OPENAI_BASE_URL for local providers)")
+    user_id = current_user["userId"]
+    try:
+        user_ai = await get_user_ai_config(user_id)
+    except Exception:
+        user_ai = {"usePersonalKey": False, "apiKey": None, "model": None}
+    effective_key = user_ai.get("apiKey") or settings.OPENAI_API_KEY
+    if not effective_key and not getattr(settings, "OPENAI_BASE_URL", None):
+        raise ApiError(503, "LLM not configured")
 
     try:
         # 这些依赖是“可选能力”：没装 langchain 相关包时不影响其它业务 API
@@ -366,8 +372,6 @@ async def chat(
     except Exception as e:
         raise ApiError(500, f"LangChain import error: {e}")
 
-    # user_id 只来自 JWT，不信任前端传参，用于做权限隔离（工具查询时只查自己的数据）
-    user_id = current_user["userId"]
     now = datetime.now(timezone.utc)
     client_now = _coerce_client_datetime(str(client_now_raw) if client_now_raw is not None else None, fallback=now)
 
@@ -451,10 +455,9 @@ async def chat(
 
         tools.append(search_user_context)
 
-    # Ollama/OpenAI-compatible provider 往往不要求真实 key，但 SDK 仍可能要求传 api_key 这个参数
     llm_kwargs: dict[str, Any] = {
-        "api_key": settings.OPENAI_API_KEY or "ollama",
-        "model": settings.OPENAI_MODEL,
+        "api_key": (user_ai.get("apiKey") or settings.OPENAI_API_KEY or "ollama"),
+        "model": (user_ai.get("model") or settings.OPENAI_MODEL),
         "temperature": 0,
     }
     if getattr(settings, "OPENAI_BASE_URL", None):

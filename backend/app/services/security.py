@@ -43,7 +43,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(_bcrypt_secret(plain_password), hashed_password)
 
 
-def create_access_token(*, user_id: str, email: str) -> str:
+def create_access_token(*, user_id: str, email: str, session_id: str | None = None) -> str:
     """签发 JWT（payload 字段与旧 Express 保持一致：userId/email/iat/exp）。"""
 
     settings = get_settings()
@@ -58,6 +58,8 @@ def create_access_token(*, user_id: str, email: str) -> str:
         "iat": int(now.timestamp()),
         "exp": int(exp.timestamp()),
     }
+    if session_id:
+        payload["sid"] = session_id
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 

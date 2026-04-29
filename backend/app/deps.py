@@ -9,11 +9,13 @@ from __future__ import annotations
 - 失败统一抛出 ApiError(401)
 """
 
+from datetime import datetime, timezone
 from fastapi import Header
 
 from app.errors import ApiError
+from app.services.db import MongoNotReadyError, get_db_checked
 from app.services.security import UnauthorizedError, decode_token
-from app.utils.mongo import to_object_id
+from app.utils.mongo import oid_str, to_object_id
 
 
 async def get_current_user(authorization: str | None = Header(default=None)) -> dict:
@@ -50,4 +52,22 @@ async def get_current_user(authorization: str | None = Header(default=None)) -> 
     except Exception:
         raise ApiError(401, "Unauthorized")
 
-    return {"userId": str(user_id), "email": str(email)}
+    sid = payload.get("sid")
+    if sid:
+        try:
+            db = await get_db_checked()
+        except MongoNotReadyError:
+            raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+        try:
+            sid_oid = to_object_id(str(sid))
+        except Exception:
+            raise ApiError(401, "Unauthorized")
+        session = await db.sessions.find_one(
+            {"_id": sid_oid, "userId": to_object_id(str(user_id)), "revokedAt": None}
+        )
+        if not session:
+            raise ApiError(401, "Unauthorized")
+        await db.sessions.update_one({"_id": sid_oid}, {"$set": {"lastSeenAt": datetime.now(timezone.utc)}})
+        return {"userId": str(user_id), "email": str(email), "sessionId": oid_str(session.get("_id"))}
+
+    return {"userId": str(user_id), "email": str(email), "sessionId": None}

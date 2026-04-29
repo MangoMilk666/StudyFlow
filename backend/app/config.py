@@ -13,6 +13,8 @@
 from __future__ import annotations
 
 import os
+import base64
+import hashlib
 from pathlib import Path
 from urllib.parse import quote_plus
 
@@ -58,6 +60,7 @@ class Settings(BaseSettings):
     JWT_SECRET: str = Field(default="secret_key", repr=False)
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 24 * 60
+    USER_SECRETS_KEY: str | None = Field(default=None, repr=False)
 
     CANVAS_BASE_URL: str | None = None
     CANVAS_TOKEN: str | None = Field(default=None, repr=False)
@@ -95,6 +98,14 @@ class Settings(BaseSettings):
                 return f"mongodb://{user_part}:{pass_part}@{host}:{port}/{dbname}?authSource={quote_plus(auth_source)}"
             return f"mongodb://{user_part}:{pass_part}@{host}:{port}/{dbname}"
         return f"mongodb://{host}:{port}/{dbname}"
+
+    @property
+    def user_secrets_key(self) -> bytes:
+        raw = (self.USER_SECRETS_KEY or "").strip()
+        if raw:
+            return raw.encode("utf-8")
+        digest = hashlib.sha256(f"{self.JWT_SECRET}|studyflow-user-secrets".encode("utf-8")).digest()
+        return base64.urlsafe_b64encode(digest)
 
 
 _settings: Settings | None = None

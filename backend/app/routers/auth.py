@@ -17,14 +17,29 @@ from app.models.auth import AuthResponse, LoginRequest, RegisterRequest, UpdateE
 from app.services.db import MongoNotReadyError, get_db_checked
 from app.services.security import create_access_token, hash_password, verify_password
 from app.utils.mongo import oid_str, to_object_id
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, Request
 
 
 router = APIRouter()
 
+async def _create_session(db, *, user_oid, device_name: str | None, request: Request, now: datetime) -> str:
+    user_agent = request.headers.get("user-agent")
+    ip = request.client.host if request.client else None
+    doc = {
+        "userId": user_oid,
+        "deviceName": (device_name or "").strip() or None,
+        "userAgent": user_agent,
+        "ip": ip,
+        "createdAt": now,
+        "lastSeenAt": now,
+        "revokedAt": None,
+    }
+    result = await db.sessions.insert_one(doc)
+    return oid_str(result.inserted_id)
+
 
 @router.post("/register", status_code=201)
-async def register(payload: RegisterRequest = Body(default_factory=RegisterRequest)):
+async def register(request: Request, payload: RegisterRequest = Body(default_factory=RegisterRequest)):
     """注册。
 
     与旧 Express 保持兼容：
@@ -52,18 +67,29 @@ async def register(payload: RegisterRequest = Body(default_factory=RegisterReque
             "username": username,
             "email": email,
             "password": hash_password(password),
+            "avatarUrl": None,
+            "dataSharingAccepted": False,
+            "dataSharingAcceptedAt": None,
+            "dataSharingVersion": None,
             "createdAt": now,
             "updatedAt": now,
         }
     )
 
     user_id = oid_str(result.inserted_id)
-    token = create_access_token(user_id=user_id, email=email)
+    session_id = await _create_session(
+        db,
+        user_oid=to_object_id(user_id),
+        device_name=payload.deviceName,
+        request=request,
+        now=now,
+    )
+    token = create_access_token(user_id=user_id, email=email, session_id=session_id)
     return AuthResponse(token=token, user=UserOut(userId=user_id, username=username, email=email))
 
 
 @router.post("/login")
-async def login(payload: LoginRequest = Body(default_factory=LoginRequest)):
+async def login(request: Request, payload: LoginRequest = Body(default_factory=LoginRequest)):
     """登录。
     FastAPI 会自动去 HTTP Body 里寻找 JSON 数据并反序列化成这个对象
     与旧 Express 保持兼容：
@@ -88,8 +114,16 @@ async def login(payload: LoginRequest = Body(default_factory=LoginRequest)):
     if not verify_password(password, str(user.get("password") or "")):
         raise ApiError(401, "Invalid credentials")
 
+    now = datetime.now(timezone.utc)
     user_id = oid_str(user.get("_id"))
-    token = create_access_token(user_id=user_id, email=email)
+    session_id = await _create_session(
+        db,
+        user_oid=to_object_id(user_id),
+        device_name=payload.deviceName,
+        request=request,
+        now=now,
+    )
+    token = create_access_token(user_id=user_id, email=email, session_id=session_id)
     return AuthResponse(
         token=token,
         user=UserOut(userId=user_id, username=str(user.get("username") or ""), email=email),

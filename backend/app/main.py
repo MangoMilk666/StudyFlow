@@ -23,7 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.errors import ApiError, api_error_handler
-from app.routers import ai, auth, canvas, modules, stats, tasks, timer
+from app.routers import ai, auth, canvas, modules, stats, tasks, timer, user
 from app.services.db import close_mongo, init_mongo, ping_mongo
 
 
@@ -99,6 +99,7 @@ def create_app() -> FastAPI:
         app.include_router(canvas.router, prefix="/api/canvas")
         app.include_router(ai.router, prefix="/api/ai")
         app.include_router(stats.router, prefix="/api/stats")
+        app.include_router(user.router, prefix="/api/user")
 
     return app
 

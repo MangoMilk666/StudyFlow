@@ -22,6 +22,7 @@ class RegisterRequest(BaseModel):
     username: str | None = None
     email: str | None = None
     password: str | None = None
+    deviceName: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -31,6 +32,7 @@ class LoginRequest(BaseModel):
 
     email: str | None = None
     password: str | None = None
+    deviceName: str | None = None
 
 
 class UpdateEmailRequest(BaseModel):
