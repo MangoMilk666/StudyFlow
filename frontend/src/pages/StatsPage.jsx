@@ -51,6 +51,38 @@ function RangeButton({ active, onClick, children }) {
   )
 }
 
+function formatShortDate(value) {
+  const s = String(value ?? '')
+  const d = new Date(s)
+  if (!Number.isNaN(d.getTime())) {
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${mm}-${dd}`
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(5, 10)
+  return s
+}
+
+function truncateLabel(value, maxLen) {
+  const s = String(value ?? '')
+  const n = Number(maxLen || 0)
+  if (!n || s.length <= n) return s
+  return `${s.slice(0, n)}...`
+}
+
+function TruncatedAxisTick({ x, y, payload }) {
+  const full = String(payload?.value ?? '')
+  const display = truncateLabel(full, 4)
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={0} y={0} dy={16} textAnchor="middle" fill="#666" style={{ fontSize: 12 }}>
+        <title>{full}</title>
+        {display}
+      </text>
+    </g>
+  )
+}
+
 export default function StatsPage() {
   const { isAuthenticated } = useAuth()
   const { t } = useI18n()
@@ -60,6 +92,19 @@ export default function StatsPage() {
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState(null)
   const [data, setData] = useState(null)
+  const [viewportWidth, setViewportWidth] = useState(() => {
+    try {
+      return window.innerWidth || 1024
+    } catch {
+      return 1024
+    }
+  })
+
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth || 1024)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -98,7 +143,7 @@ export default function StatsPage() {
     ]
   }, [data, t])
 
-  const completionColors = useMemo(() => ['var(--panel-done)', 'var(--panel-todo)'], [])
+  const completionColors = useMemo(() => ['#f6c453', '#94a3b8'], [])
 
   const moduleData = useMemo(() => {
     const arr = Array.isArray(data?.moduleTimeSpent) ? data.moduleTimeSpent : []
@@ -114,6 +159,14 @@ export default function StatsPage() {
     const arr = Array.isArray(data?.trend) ? data.trend : []
     return arr.map((x) => ({ date: x.date, done: Number(x.done || 0), created: Number(x.created || 0) }))
   }, [data])
+
+  const trendTickInterval = useMemo(() => {
+    const n = trendData.length || 0
+    if (!n) return 0
+    const maxTicks = viewportWidth < 520 ? 4 : viewportWidth < 900 ? 6 : 8
+    const every = Math.max(1, Math.ceil(n / maxTicks))
+    return Math.max(every - 1, 0)
+  }, [trendData.length, viewportWidth])
 
   return (
     <div className="sf-page">
@@ -226,13 +279,13 @@ export default function StatsPage() {
                       }}
                     >
                       <ResponsiveContainer width="98%" height="96%">
-                        <BarChart data={topTaskData} layout="vertical" margin={{ left: 0, right: 14, top: 10, bottom: 0 }}>
+                        <BarChart data={topTaskData} margin={{ left: 0, right: 14, top: 10, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis type="number" />
-                          <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 12 }} />
+                          <XAxis type="category" dataKey="name" interval={0} height={44} tick={<TruncatedAxisTick />} />
+                          <YAxis type="number" />
                           <Tooltip />
                           <Legend />
-                          <Bar dataKey="minutes" name={t('stats.minutes')} fill="var(--btn-add-bg)" />
+                          <Bar dataKey="minutes" name={t('stats.minutes')} fill="#6366f1" />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -242,7 +295,15 @@ export default function StatsPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={trendData}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tick={{ fontSize: 12 }} interval={Math.max(Math.floor(trendData.length / 7), 1)} />
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 12 }}
+                          interval={trendTickInterval}
+                          tickFormatter={formatShortDate}
+                          angle={-20}
+                          textAnchor="end"
+                          height={50}
+                        />
                         <YAxis />
                         <Tooltip />
                         <Legend />
