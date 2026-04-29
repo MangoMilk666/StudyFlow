@@ -175,7 +175,7 @@ async def list_devices(current_user: dict = Depends(get_current_user)):
         raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
     user_oid = to_object_id(current_user["userId"])
     current_sid = current_user.get("sessionId")
-    docs = await db.sessions.find({"userId": user_oid}).sort("lastSeenAt", -1).to_list(length=None)
+    docs = await db.sessions.find({"userId": user_oid, "revokedAt": None}).sort("lastSeenAt", -1).to_list(length=None)
     return [_serialize_device(d, current_sid) for d in docs]
 
 
@@ -194,8 +194,12 @@ async def revoke_device(id: str, current_user: dict = Depends(get_current_user))
         sid_oid = to_object_id(id)
     except Exception:
         raise ApiError(400, "invalid device id")
-    result = await db.sessions.update_one({"_id": sid_oid, "userId": user_oid}, {"$set": {"revokedAt": now}})
+    result = await db.sessions.update_one(
+        {"_id": sid_oid, "userId": user_oid, "revokedAt": None},
+        {"$set": {"revokedAt": now}},
+    )
     if result.matched_count == 0:
-        raise ApiError(404, "Device not found")
+        existing = await db.sessions.find_one({"_id": sid_oid, "userId": user_oid})
+        if not existing:
+            raise ApiError(404, "Device not found")
     return {"message": "Revoked"}
-

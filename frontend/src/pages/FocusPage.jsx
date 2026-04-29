@@ -269,7 +269,7 @@ export default function FocusPage() {
               </div>
 
               <div style={{ marginTop: 26, fontSize: 12, opacity: 0.8, textAlign: 'center' }}>
-                {t('focus.skeletonNote')}
+                {!isAuthenticated ? t('common.loginMore') : ''}
               </div>
             </section>
 

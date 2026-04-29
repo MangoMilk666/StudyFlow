@@ -26,6 +26,13 @@ function formatDateTime(value) {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
 }
 
+function normalizeColorHex(value) {
+  const raw = String(value ?? '').trim().replace(/\s+/g, '')
+  const s = raw.startsWith('#') ? raw.slice(1) : raw
+  if (/^[0-9a-fA-F]{6}$/.test(s)) return `#${s.toLowerCase()}`
+  return '#3f51b5'
+}
+
 function Modal({ open, title, children, onClose }) {
   if (!open) return null
   return (
@@ -109,7 +116,8 @@ export default function SettingsPage() {
       setProfile(p.data || null)
       setModules(Array.isArray(m.data) ? m.data : [])
       setAiConfig(a.data || null)
-      setDevices(Array.isArray(d.data) ? d.data : [])
+      const list = Array.isArray(d.data) ? d.data : []
+      setDevices(list.filter((x) => !x?.revokedAt))
     } catch (err) {
       const msg = err?.response?.data?.error || err?.message || 'Load failed'
       setNotice({ type: 'error', text: msg })
@@ -155,6 +163,7 @@ export default function SettingsPage() {
   const saveModule = async () => {
     setNotice(null)
     const name = String(moduleDraft.name || '').trim()
+    const colorCode = normalizeColorHex(moduleDraft.colorCode)
     if (!name) {
       setNotice({ type: 'error', text: t('settings.moduleNameRequired') })
       return
@@ -162,9 +171,9 @@ export default function SettingsPage() {
     try {
       setLoading(true)
       if (editingModuleId) {
-        await moduleAPI.updateModule(editingModuleId, { name, colorCode: moduleDraft.colorCode })
+        await moduleAPI.updateModule(editingModuleId, { name, colorCode })
       } else {
-        await moduleAPI.createModule({ name, colorCode: moduleDraft.colorCode })
+        await moduleAPI.createModule({ name, colorCode })
       }
       setModuleDraft({ name: '', colorCode: '#3f51b5' })
       setEditingModuleId(null)
@@ -277,13 +286,28 @@ export default function SettingsPage() {
     setNotice(null)
     const ok = window.confirm(t('settings.confirmRevoke'))
     if (!ok) return
+
+    // Check if revoking the current session (which requires a full logout)
+    const target = (devices || []).find((x) => x?.id === id)
+    if (target?.current) {
+      logout()
+      navigate('/')
+      return
+    }
+
+    // Optimistic remove so the UI feels instant
+    setDevices((prev) => (prev || []).filter((x) => x?.id !== id))
+    setLoading(true)
     try {
-      setLoading(true)
       await userAPI.revokeDevice(id)
+      // Sync with server to confirm
       const resp = await userAPI.listDevices()
-      setDevices(Array.isArray(resp.data) ? resp.data : [])
+      const list = Array.isArray(resp.data) ? resp.data : []
+      setDevices(list.filter((x) => !x?.revokedAt))
       setNotice({ type: 'success', text: t('settings.saved') })
     } catch (err) {
+      // Restore the removed item on failure
+      setDevices((prev) => (target ? [...(prev || []), target] : prev || []))
       const msg = err?.response?.data?.error || err?.message || 'Action failed'
       setNotice({ type: 'error', text: msg })
     } finally {
@@ -393,9 +417,10 @@ export default function SettingsPage() {
                         disabled={loading}
                       />
                       <input
-                        value={moduleDraft.colorCode}
+                        type="color"
+                        value={normalizeColorHex(moduleDraft.colorCode)}
                         onChange={(e) => setModuleDraft((s) => ({ ...s, colorCode: e.target.value }))}
-                        style={{ padding: '10px 12px', borderRadius: 12, border: `2px solid var(--ink)`, fontWeight: 'bold' }}
+                        style={{ height: 44, padding: 4, borderRadius: 12, border: `2px solid var(--ink)`, background: 'white' }}
                         disabled={loading}
                       />
                     </div>

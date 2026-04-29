@@ -9,6 +9,7 @@ const translations = {
       cancel: 'Cancel',
       save: 'Save',
       loading: 'Loading...',
+      loginMore: 'Please log in to access more functions',
     },
     nav: {
       home: 'Home',
@@ -197,6 +198,7 @@ const translations = {
       cancel: '取消',
       save: '保存',
       loading: '加载中...',
+      loginMore: '请登录体验更多功能',
     },
     nav: {
       home: '首页',

@@ -5,7 +5,7 @@ import { useI18n } from '../i18n'
 import { useUnifiedTasks } from '../hooks/useUnifiedTasks'
 import { statsAPI } from '../services/api'
 
-function Panel({ title, color, tasks, onTaskClick, pomodoroCounts, hoveredTaskId, onHoverPomodoro, onLeavePomodoro }) {
+function Panel({ title, color, tasks, onTaskClick, isAuthenticated, pomodoroCounts, hoveredTaskId, onHoverPomodoro, onLeavePomodoro }) {
   const { t: tr } = useI18n()
 
   return (
@@ -43,6 +43,10 @@ function Panel({ title, color, tasks, onTaskClick, pomodoroCounts, hoveredTaskId
               title={tr('dashboard.clickHint')}
             >
               <span style={{ flex: '1 1 auto', textAlign: 'left' }}>{task.name}</span>
+              {(() => {
+                const count = Number(pomodoroCounts?.[task.id] || 0)
+                const showCount = isAuthenticated && hoveredTaskId === task.id
+                return (
               <span
                 role="button"
                 tabIndex={0}
@@ -58,14 +62,21 @@ function Panel({ title, color, tasks, onTaskClick, pomodoroCounts, hoveredTaskId
                   background: 'white',
                   fontWeight: 'bold',
                   fontSize: 12,
-                  opacity: hoveredTaskId === task.id ? 1 : 0.6,
+                  opacity: showCount ? 1 : 0.6,
                   userSelect: 'none',
                   whiteSpace: 'nowrap',
+                  minWidth: 68,
+                  textAlign: 'center',
+                  display: 'inline-flex',
+                  justifyContent: 'center',
                 }}
-                title={hoveredTaskId === task.id ? undefined : '🍅'}
+                title={isAuthenticated ? `🍅 x${count}` : undefined}
               >
-                {hoveredTaskId === task.id ? `🍅 x${Number(pomodoroCounts?.[task.id] || 0)}` : '🍅'}
+                <span>🍅</span>
+                <span style={{ visibility: showCount ? 'visible' : 'hidden' }}>{` x${count}`}</span>
               </span>
+                )
+              })()}
             </button>
           ))
         ) : (
@@ -78,7 +89,7 @@ function Panel({ title, color, tasks, onTaskClick, pomodoroCounts, hoveredTaskId
 
 export default function Dashboard() {
   const { tasks, cycleStatus, isAuthenticated } = useUnifiedTasks()
-  const apiHealth = useApiHealth()
+  useApiHealth()
   const { t: tr } = useI18n()
   const [authFlash, setAuthFlash] = useState(null)
   const [pomodoroCounts, setPomodoroCounts] = useState({})
@@ -104,8 +115,8 @@ export default function Dashboard() {
   }
 
   const onHoverPomodoro = (taskId) => {
-    setHoveredTaskId(taskId)
     if (!isAuthenticated) return
+    setHoveredTaskId((prev) => (prev === taskId ? prev : taskId))
     if (pomodoroCounts?.[taskId] != null) return
     statsAPI
       .getTaskStats(taskId)
@@ -139,6 +150,7 @@ export default function Dashboard() {
               color="var(--panel-todo)"
               tasks={byStatus.todo}
               onTaskClick={cycleStatus}
+              isAuthenticated={isAuthenticated}
               pomodoroCounts={pomodoroCounts}
               hoveredTaskId={hoveredTaskId}
               onHoverPomodoro={onHoverPomodoro}
@@ -149,6 +161,7 @@ export default function Dashboard() {
               color="var(--panel-progress)"
               tasks={byStatus.in_progress}
               onTaskClick={cycleStatus}
+              isAuthenticated={isAuthenticated}
               pomodoroCounts={pomodoroCounts}
               hoveredTaskId={hoveredTaskId}
               onHoverPomodoro={onHoverPomodoro}
@@ -159,6 +172,7 @@ export default function Dashboard() {
               color="var(--panel-review)"
               tasks={byStatus.review}
               onTaskClick={cycleStatus}
+              isAuthenticated={isAuthenticated}
               pomodoroCounts={pomodoroCounts}
               hoveredTaskId={hoveredTaskId}
               onHoverPomodoro={onHoverPomodoro}
@@ -169,6 +183,7 @@ export default function Dashboard() {
               color="var(--panel-done)"
               tasks={byStatus.done}
               onTaskClick={cycleStatus}
+              isAuthenticated={isAuthenticated}
               pomodoroCounts={pomodoroCounts}
               hoveredTaskId={hoveredTaskId}
               onHoverPomodoro={onHoverPomodoro}
@@ -176,12 +191,11 @@ export default function Dashboard() {
             />
           </main>
 
-          <div style={{ marginTop: 18, fontSize: 12, opacity: 0.8 }}>
-            {tr('dashboard.note')}
-            {apiHealth.status === 'ok'
-              ? ` ${tr('dashboard.backendOk', apiHealth.data?.status)}`
-              : ` ${tr('dashboard.backendErr')}`}
-          </div>
+          {!isAuthenticated ? (
+            <div style={{ marginTop: 18, fontSize: 12, opacity: 0.85, fontWeight: 'bold' }}>
+              {tr('common.loginMore')}
+            </div>
+          ) : null}
         </div>
 
         {authFlash ? (

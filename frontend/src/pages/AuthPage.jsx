@@ -4,6 +4,7 @@ import TopNav from '../components/TopNav'
 import { useAuth } from '../auth'
 import { authAPI } from '../services/api'
 import { useI18n } from '../i18n'
+import { getPersistentDeviceId } from '../utils/device'
 
 export default function AuthPage() {
   const navigate = useNavigate()
@@ -22,6 +23,8 @@ export default function AuthPage() {
       return 'browser'
     }
   }, [])
+  // 引入 getPersistentDeviceId，通过 useMemo 在组件挂载时取一次 UUID
+  const persistentId = useMemo(() => getPersistentDeviceId(), [])
 
   const i18nTitle = useMemo(() => (isLogin ? t('auth.login') : t('auth.register')), [isLogin, t])
 
@@ -70,9 +73,10 @@ export default function AuthPage() {
                 }
 
                 try {
+                  // 登录和注册请求中额外携带 persistentId 字段
                   const resp = isLogin
-                    ? await authAPI.login(form.email, form.password, deviceName)
-                    : await authAPI.register(form.username, form.email, form.password, deviceName)
+                    ? await authAPI.login(form.email, form.password, deviceName, persistentId)
+                    : await authAPI.register(form.username, form.email, form.password, deviceName, persistentId)
 
                   const { token, user } = resp.data || {}
                   if (!token || !user) {

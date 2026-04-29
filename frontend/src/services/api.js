@@ -48,7 +48,9 @@ apiClient.interceptors.response.use(
   (resp) => resp,
   (error) => {
     const status = error?.response?.status
-    if (status === 401) {
+    const url = String(error?.config?.url || '')
+    // Skip redirect for the logout endpoint — the caller already handles cleanup
+    if (status === 401 && !url.endsWith('/auth/logout')) {
       try {
         localStorage.removeItem(LS_TOKEN_KEY)
         localStorage.removeItem(LS_USER_KEY)
@@ -63,11 +65,12 @@ apiClient.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-  register: (username, email, password, deviceName) =>
-    apiClient.post('/auth/register', { username, email, password, deviceName }),
-  login: (email, password, deviceName) =>
-    apiClient.post('/auth/login', { email, password, deviceName }),
+  register: (username, email, password, deviceName, persistentId) =>
+    apiClient.post('/auth/register', { username, email, password, deviceName, persistentId }),
+  login: (email, password, deviceName, persistentId) =>
+    apiClient.post('/auth/login', { email, password, deviceName, persistentId }),
   updateEmail: (email) => apiClient.patch('/auth/email', { email }),
+  logout: () => apiClient.post('/auth/logout'),
 };
 
 // Task API

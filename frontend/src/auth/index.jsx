@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { authAPI } from '../services/api'
 
 const LS_USER_KEY = 'sf_user_v1'
 const LS_TOKEN_KEY = 'sf_token_v1'
@@ -24,6 +25,8 @@ export function AuthProvider({ children }) {
   }, [])
 
   const logout = useCallback(() => {
+    // Best-effort: revoke session on backend before clearing local state
+    authAPI.logout().catch(() => {})
     localStorage.removeItem(LS_USER_KEY)
     localStorage.removeItem(LS_TOKEN_KEY)
     setUser(null)

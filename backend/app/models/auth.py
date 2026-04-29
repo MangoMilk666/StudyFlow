@@ -23,6 +23,7 @@ class RegisterRequest(BaseModel):
     email: str | None = None
     password: str | None = None
     deviceName: str | None = None
+    persistentId: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -33,6 +34,7 @@ class LoginRequest(BaseModel):
     email: str | None = None
     password: str | None = None
     deviceName: str | None = None
+    persistentId: str | None = None
 
 
 class UpdateEmailRequest(BaseModel):

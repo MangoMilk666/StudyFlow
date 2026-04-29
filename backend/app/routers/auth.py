@@ -22,12 +22,63 @@ from fastapi import APIRouter, Body, Depends, Request
 
 router = APIRouter()
 
-async def _create_session(db, *, user_oid, device_name: str | None, request: Request, now: datetime) -> str:
+async def _create_session(
+    db,
+    *,
+    user_oid,
+    device_name: str | None,
+    persistent_id: str | None,
+    request: Request,
+    now: datetime,
+) -> str:
     user_agent = request.headers.get("user-agent")
     ip = request.client.host if request.client else None
+    cleaned_device = (device_name or "").strip() or None
+    cleaned_pid = (persistent_id or "").strip() or None
+
+    # Priority 1: stable UUID — survives browser updates and UA changes
+    if cleaned_pid:
+        existing = await db.sessions.find_one(
+            {"userId": user_oid, "revokedAt": None, "persistentId": cleaned_pid}
+        )
+        # 同一台设备上的浏览器，uuid存在 -> 更新lastSeenAt
+        if existing:
+            await db.sessions.update_one(
+                {"_id": existing.get("_id")},
+                {"$set": {"lastSeenAt": now, "ip": ip, "userAgent": user_agent, "deviceName": cleaned_device}},
+            )
+            return oid_str(existing.get("_id"))
+
+    # Priority 2 (legacy — no UUID): real platform name match, ignore UA version drift
+    if cleaned_device and cleaned_device != "browser":
+        existing = await db.sessions.find_one(
+            {"userId": user_oid, "revokedAt": None, "deviceName": cleaned_device, "persistentId": None}
+        )
+        # 没有uuid，但是老的平台名称匹配的到 -> 更新lastSeenAt, ip, user_agent字段
+        if existing:
+            await db.sessions.update_one(
+                {"_id": existing.get("_id")},
+                {"$set": {"lastSeenAt": now, "ip": ip, "userAgent": user_agent}},
+            )
+            return oid_str(existing.get("_id"))
+
+    # Priority 3 (legacy — no UUID, generic deviceName): exact UA match
+    if user_agent:
+        existing = await db.sessions.find_one(
+            {"userId": user_oid, "revokedAt": None, "deviceName": cleaned_device,
+             "userAgent": user_agent, "persistentId": None}
+        )
+        if existing:
+            await db.sessions.update_one(
+                {"_id": existing.get("_id")},
+                {"$set": {"lastSeenAt": now, "ip": ip}},
+            )
+            return oid_str(existing.get("_id"))
+
     doc = {
         "userId": user_oid,
-        "deviceName": (device_name or "").strip() or None,
+        "persistentId": cleaned_pid,
+        "deviceName": cleaned_device,
         "userAgent": user_agent,
         "ip": ip,
         "createdAt": now,
@@ -81,6 +132,7 @@ async def register(request: Request, payload: RegisterRequest = Body(default_fac
         db,
         user_oid=to_object_id(user_id),
         device_name=payload.deviceName,
+        persistent_id=payload.persistentId,
         request=request,
         now=now,
     )
@@ -120,6 +172,7 @@ async def login(request: Request, payload: LoginRequest = Body(default_factory=L
         db,
         user_oid=to_object_id(user_id),
         device_name=payload.deviceName,
+        persistent_id=payload.persistentId,
         request=request,
         now=now,
     )
@@ -128,6 +181,26 @@ async def login(request: Request, payload: LoginRequest = Body(default_factory=L
         token=token,
         user=UserOut(userId=user_id, username=str(user.get("username") or ""), email=email),
     )
+
+
+@router.post("/logout")
+async def logout(current_user: dict = Depends(get_current_user)):
+    """
+    登出：吊销当前 JWT 对应的 session。
+    """
+    session_id = current_user.get("sessionId")
+    if not session_id:
+        return {"message": "Logged out"}
+    try:
+        db = await get_db_checked()
+    except MongoNotReadyError:
+        raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+    now = datetime.now(timezone.utc)
+    await db.sessions.update_one(
+        {"_id": to_object_id(session_id), "revokedAt": None},
+        {"$set": {"revokedAt": now}},
+    )
+    return {"message": "Logged out"}
 
 
 @router.patch("/email")
