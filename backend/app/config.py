@@ -10,6 +10,12 @@
 以避免每次请求都重复解析环境变量。
 """
 
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from urllib.parse import quote_plus
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -39,8 +45,14 @@ class Settings(BaseSettings):
 
     MOCK_MODE: bool = False
 
-    MONGO_URI: str = "mongodb://localhost:27017/studyflow"
+    MONGO_URI: str | None = None
     MONGO_DB: str | None = None
+    MONGO_HOST: str | None = None
+    MONGO_PORT: int = 27017
+    MONGO_DBNAME: str = "studyflow"
+    MONGO_USERNAME: str | None = Field(default=None, repr=False)
+    MONGO_PASSWORD: str | None = Field(default=None, repr=False)
+    MONGO_AUTH_SOURCE: str | None = "admin"
 
     # 注意：生产环境务必使用强随机密钥。
     JWT_SECRET: str = Field(default="secret_key", repr=False)
@@ -58,6 +70,31 @@ class Settings(BaseSettings):
     CHROMA_PERSIST_DIR: str = ".chroma"
 
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+
+    @property
+    def mongo_uri(self) -> str:
+        if self.MONGO_URI and str(self.MONGO_URI).strip():
+            return str(self.MONGO_URI).strip()
+
+        in_container = (
+            str(os.environ.get("IN_DOCKER") or "").lower() in {"1", "true", "yes"}
+            or Path("/.dockerenv").exists()
+        )
+        host = self.MONGO_HOST or ("host.docker.internal" if in_container else "127.0.0.1")
+        port = int(self.MONGO_PORT or 27017)
+        dbname = str(self.MONGO_DBNAME or "studyflow").strip() or "studyflow"
+
+        username = (self.MONGO_USERNAME or "").strip() or None
+        password = (self.MONGO_PASSWORD or "").strip() or None
+        auth_source = (self.MONGO_AUTH_SOURCE or "").strip() or None
+
+        if username and password:
+            user_part = quote_plus(username)
+            pass_part = quote_plus(password)
+            if auth_source:
+                return f"mongodb://{user_part}:{pass_part}@{host}:{port}/{dbname}?authSource={quote_plus(auth_source)}"
+            return f"mongodb://{user_part}:{pass_part}@{host}:{port}/{dbname}"
+        return f"mongodb://{host}:{port}/{dbname}"
 
 
 _settings: Settings | None = None

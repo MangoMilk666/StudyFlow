@@ -39,8 +39,9 @@ def init_mongo() -> None:
     """
 
     settings = get_settings()
+    uri = settings.mongo_uri
     mongo.client = AsyncIOMotorClient(
-        settings.MONGO_URI,
+        uri,
         # 把超时设短：联调时如果 Mongo 没启动/地址错，不要卡住整个请求
         serverSelectionTimeoutMS=1500,
         connectTimeoutMS=1500,

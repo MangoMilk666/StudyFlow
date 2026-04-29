@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
 const LS_LANG_KEY = 'sf_lang_v1'
-
+// internationalization
 const translations = {
   en: {
     common: {

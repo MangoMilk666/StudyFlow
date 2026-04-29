@@ -1,23 +1,5 @@
-# 管理和编排多个容器的运行，启动一整套相互关联的服务（前端 + 后端 + 数据库）
+# 管理和编排多个容器的运行，启动一整套相互关联的服务（前端 + 后端）
 services:
-  # MongoDB Database Service
-  database:
-    image: mongo:latest
-    container_name: studyflow-db
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_DATABASE: studyflow
-    volumes: # 数据持久化
-      - mongo-data:/data/db
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - studyflow-network
-
   # Backend API Service
   backend:
     # 固定 image 名称可以避免因为项目名变化导致重复生成多份镜像（占用磁盘空间）。
@@ -29,8 +11,10 @@ services:
     container_name: studyflow-backend
     ports:
       - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      - MONGO_URI=mongodb://database:27017/studyflow
+      - MONGO_URI=mongodb://host.docker.internal:27017/studyflow
       - JWT_SECRET=studyflow_jwt_secret_key_2026
       - PORT=8000
       - MOCK_MODE=${MOCK_MODE:-false}
@@ -39,9 +23,6 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL}
       - CHROMA_PERSIST_DIR=/data/chroma
-    depends_on:
-      database:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 10s
@@ -70,8 +51,6 @@ services:
 
 # Named volumes for data persistence
 volumes:
-  mongo-data:
-    driver: local
   chroma-data:
     driver: local
 

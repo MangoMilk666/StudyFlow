@@ -132,21 +132,8 @@ ensure_db() {
   if [[ "$START_DB" -ne 1 ]]; then
     return 0
   fi
-  if ! command -v docker >/dev/null 2>&1; then
-    echo "[数据库] 未检测到 docker，跳过自动启动 MongoDB。" >&2
-    return 0
-  fi
-  local project_name="${COMPOSE_PROJECT_NAME:-studyflow}"
-  echo "[数据库] 尝试启动 MongoDB（docker compose up -d database）" >&2
-  (cd "$ROOT_DIR" && docker compose -p "$project_name" up -d database) || {
-    echo "[数据库] 启动失败：请确认 Docker Desktop 已启动。" >&2
-    return 0
-  }
-
-  # 等待 MongoDB 端口可用（避免数据库刚起就立刻注册导致 500）。
-  # 这里不依赖 mongosh/容器 exec，仅做 TCP 端口探测。
   local mongo_uri="${MONGO_URI:-mongodb://127.0.0.1:27017/studyflow}"
-  echo "[数据库] 等待 MongoDB 就绪：$mongo_uri" >&2
+  echo "[数据库] 检查宿主机 MongoDB 是否就绪：$mongo_uri" >&2
   python3 - <<'PY'
 import socket
 import time
@@ -180,6 +167,13 @@ while time.time() < deadline:
 print(f'MongoDB 未在 30s 内就绪：{last}')
 raise SystemExit(0)
 PY
+  local ok=$?
+  if [[ "$ok" -ne 0 ]]; then
+    echo "[数据库] 未检测到本地 MongoDB（27017）。请先在宿主机启动 MongoDB：" >&2
+    echo "  brew services start mongodb-community" >&2
+    echo "[数据库] 启动后请重试：./dev-up.sh --real" >&2
+    exit 1
+  fi
 }
 
 BACKEND_PID=""
@@ -225,8 +219,8 @@ if [[ "$START_BACKEND" -eq 1 ]]; then
   echo "[后端] 启动 FastAPI（uvicorn, reload）" >&2
   (
     cd "$ROOT_DIR/backend"
-    source .venv/bin/activate
-    uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+    source .venv/bin/activate # 激活本地虚拟环境
+    uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload # 启动后端服务
   ) &
   BACKEND_PID=$!
 fi
