@@ -14,6 +14,14 @@ export default function AuthPage() {
   const isLogin = mode === 'login'
   const [form, setForm] = useState({ username: '', email: '', password: '' })
   const [notice, setNotice] = useState(null)
+  const deviceName = useMemo(() => {
+    try {
+      const platform = String(window?.navigator?.platform || '').trim()
+      return platform || 'browser'
+    } catch {
+      return 'browser'
+    }
+  }, [])
 
   const i18nTitle = useMemo(() => (isLogin ? t('auth.login') : t('auth.register')), [isLogin, t])
 
@@ -63,8 +71,8 @@ export default function AuthPage() {
 
                 try {
                   const resp = isLogin
-                    ? await authAPI.login(form.email, form.password)
-                    : await authAPI.register(form.username, form.email, form.password)
+                    ? await authAPI.login(form.email, form.password, deviceName)
+                    : await authAPI.register(form.username, form.email, form.password, deviceName)
 
                   const { token, user } = resp.data || {}
                   if (!token || !user) {

@@ -63,10 +63,10 @@ apiClient.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-  register: (username, email, password) =>
-    apiClient.post('/auth/register', { username, email, password }),
-  login: (email, password) =>
-    apiClient.post('/auth/login', { email, password }),
+  register: (username, email, password, deviceName) =>
+    apiClient.post('/auth/register', { username, email, password, deviceName }),
+  login: (email, password, deviceName) =>
+    apiClient.post('/auth/login', { email, password, deviceName }),
   updateEmail: (email) => apiClient.patch('/auth/email', { email }),
 };
 
@@ -112,6 +112,16 @@ export const canvasAPI = {
   previewAssignments: (courseIds) => apiClient.post('/canvas/preview-assignments', { courseIds }),
   importAssignments: (courseIds) => apiClient.post('/canvas/import-assignments', { courseIds }),
   syncAssignments: (courseIds) => apiClient.post('/canvas/sync-assignments', { courseIds }),
+}
+
+export const userAPI = {
+  getProfile: () => apiClient.get('/user/profile'),
+  getAIConfig: () => apiClient.get('/user/ai-config'),
+  updateAIConfig: (payload) => apiClient.put('/user/ai-config', payload),
+  deleteAIConfig: () => apiClient.delete('/user/ai-config'),
+  updateConsent: (accepted) => apiClient.put('/user/consent', { accepted: !!accepted }),
+  listDevices: () => apiClient.get('/user/devices'),
+  revokeDevice: (id) => apiClient.delete(`/user/devices/${id}`),
 }
 
 export default apiClient;
