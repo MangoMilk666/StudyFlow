@@ -1,5 +1,7 @@
 # StudyFlow
 
+Project Statement (PDF): [docs/Project_Statement.pdf](docs/Project_Statement.pdf)
+
 ## Overview
 
 StudyFlow is a student-oriented productivity management application. It centers on a Kanban-style task board and combines Pomodoro focus timers, statistical analysis, an AI assistant powered by RAG (Retrieval-Augmented Generation), and Canvas LMS integration into a single unified workspace. The goal is to give students a coherent view of their study workload, time investment, and progress without switching between multiple tools.
@@ -139,75 +141,6 @@ MongoDB is used as the sole database. Collections:
 
 ---
 
-## Directory Structure
-
-```
-StudyFlow/
-├── backend/
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── config.py
-│   │   ├── deps.py
-│   │   ├── errors.py
-│   │   ├── models/
-│   │   │   ├── auth.py
-│   │   │   ├── user.py
-│   │   │   ├── task.py
-│   │   │   ├── module.py
-│   │   │   └── timer.py
-│   │   ├── routers/
-│   │   │   ├── auth.py
-│   │   │   ├── user.py
-│   │   │   ├── tasks.py
-│   │   │   ├── modules.py
-│   │   │   ├── timer.py
-│   │   │   ├── stats.py
-│   │   │   ├── ai.py
-│   │   │   ├── canvas.py
-│   │   │   └── mock.py
-│   │   └── services/
-│   │       ├── db.py
-│   │       ├── security.py
-│   │       ├── crypto.py
-│   │       ├── rag.py
-│   │       ├── canvas_client.py
-│   │       └── user_ai_config.py
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── .env.example
-├── frontend/
-│   ├── src/
-│   │   ├── auth/
-│   │   ├── components/
-│   │   ├── hooks/
-│   │   ├── i18n/
-│   │   ├── pages/
-│   │   ├── services/
-│   │   └── utils/
-│   ├── public/
-│   ├── Dockerfile
-│   ├── nginx.conf
-│   ├── vite.config.js
-│   ├── package.json
-│   └── .env.example
-├── docs/
-│   ├── requirements.md
-│   ├── database_schema.md
-│   ├── PROJECT_STRUCTURE.md
-│   └── update-record.md
-├── docker-compose.yml
-├── dev-up.sh
-├── .env.example
-├── .env.local.example
-├── .env.prod.example
-├── .gitignore
-├── README.md
-├── READEME-zh.md
-└── API_EXAMPLES.md
-```
-
----
-
 ## Configuration Files
 
 The following files are committed to the repository as templates. Copy and rename them (removing `.example`) to create your actual configuration. Never commit files containing real secrets.
@@ -240,16 +173,6 @@ Full local development variable reference used by `dev-up.sh`. Key variables:
 ### `.env.prod.example`
 
 Production variable reference. Structure mirrors `.env.local.example` but intended for deployment platforms (CI/CD environment injection). Contains a `MONGO_URI` pointing to a production Atlas cluster or self-hosted instance, and a strong `JWT_SECRET`.
-
-### `backend/.env.example`
-
-Backend-only environment reference for running the backend directly without Docker Compose.
-
-### `frontend/.env.example`
-
-Frontend build-time variable:
-
-- `VITE_API_BASE_URL` - the base URL Axios uses for API calls (defaults to `/api` when proxied through Nginx; set to the full backend URL for standalone frontend development)
 
 ### `docker-compose.yml`
 
