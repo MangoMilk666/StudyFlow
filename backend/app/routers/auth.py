@@ -108,9 +108,10 @@ async def register(request: Request, payload: RegisterRequest = Body(default_fac
         db = await get_db_checked()
     except MongoNotReadyError:
         raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
-    existing = await db.users.find_one({"$or": [{"email": email}, {"username": username}]})
-    if existing:
-        raise ApiError(400, "User already exists")
+    if await db.users.find_one({"username": username}):
+        raise ApiError(400, "Username already taken")
+    if await db.users.find_one({"email": email}):
+        raise ApiError(400, "Email already registered")
 
     now = datetime.now(timezone.utc)
     result = await db.users.insert_one(

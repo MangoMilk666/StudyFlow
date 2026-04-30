@@ -100,7 +100,11 @@ export default function AuthPage() {
                   setNotice(null)
                   navigate('/dashboard', { replace: true })
                 } catch (err) {
-                  const msg = err?.response?.data?.error || err?.message || 'Login failed'
+                  const raw = err?.response?.data?.error || err?.message || 'Login failed'
+                  const msg =
+                    raw === 'Username already taken' ? t('auth.usernameTaken') :
+                    raw === 'Email already registered' ? t('auth.emailTaken') :
+                    raw
                   setNotice({ type: 'error', text: msg })
                 }
               }}
