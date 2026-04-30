@@ -119,6 +119,7 @@ export const canvasAPI = {
 
 export const userAPI = {
   getProfile: () => apiClient.get('/user/profile'),
+  updateUsername: (username) => apiClient.patch('/user/username', { username }),
   getAIConfig: () => apiClient.get('/user/ai-config'),
   updateAIConfig: (payload) => apiClient.put('/user/ai-config', payload),
   deleteAIConfig: () => apiClient.delete('/user/ai-config'),

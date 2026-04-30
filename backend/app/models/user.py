@@ -31,6 +31,12 @@ class AIConfigUpdateRequest(BaseModel):
     model: str | None = None
 
 
+class UpdateUsernameRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    username: str | None = None
+
+
 class ConsentUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 

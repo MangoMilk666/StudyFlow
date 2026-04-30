@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, Depends
 
 from app.deps import get_current_user
 from app.errors import ApiError
-from app.models.user import AIConfigOut, AIConfigUpdateRequest, ConsentUpdateRequest, DeviceOut, ProfileOut
+from app.models.user import AIConfigOut, AIConfigUpdateRequest, ConsentUpdateRequest, DeviceOut, ProfileOut, UpdateUsernameRequest
 from app.services.crypto import encrypt_text
 from app.services.db import MongoNotReadyError, get_db_checked
 from app.utils.mongo import oid_str, serialize_datetime, to_object_id
@@ -50,6 +50,37 @@ def _serialize_device(doc: dict, current_session_id: str | None) -> dict:
         revokedAt=serialize_datetime(doc.get("revokedAt")),
         current=bool(current_session_id and sid == current_session_id),
     ).model_dump()
+
+
+@router.patch("/username")
+async def update_username(
+    payload: UpdateUsernameRequest = Body(default_factory=UpdateUsernameRequest),
+    current_user: dict = Depends(get_current_user),
+):
+    new_username = (payload.username or "").strip()
+    if not new_username:
+        raise ApiError(400, "username required")
+
+    try:
+        db = await get_db_checked()
+    except MongoNotReadyError:
+        raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+
+    user_id = current_user["userId"]
+    exists = await db.users.find_one({"username": new_username, "_id": {"$ne": to_object_id(user_id)}})
+    # 去重username
+    if exists:
+        raise ApiError(409, "Username already in use")
+
+    now = datetime.now(timezone.utc)
+    await db.users.update_one(
+        {"_id": to_object_id(user_id)},
+        {"$set": {"username": new_username, "updatedAt": now}},
+    )
+    updated = await db.users.find_one({"_id": to_object_id(user_id)})
+    if not updated:
+        raise ApiError(404, "User not found")
+    return _serialize_profile(updated)
 
 
 @router.get("/profile")
