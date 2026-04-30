@@ -352,12 +352,12 @@ export default function ChatModal({ open, onClose, t }) {
     >
       <div
         style={{
-          width: 'min(720px, 100%)',
-          height: 'min(70vh, 620px)',
+          width: 'min(1100px, calc(100vw - 32px))',
+          height: 'min(90vh, 900px)',
           background: 'white',
           border: `3px solid var(--ink)`,
           borderRadius: 24,
-          padding: 16,
+          padding: 20,
           boxShadow: '10px 10px 0 rgba(0,0,0,0.15)',
           display: 'flex',
           flexDirection: 'column',

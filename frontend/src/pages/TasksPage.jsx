@@ -64,6 +64,8 @@ function getLocalDeviceTimestamp() {
   return new Date().toISOString()
 }
 
+const EMPTY_FILTER = { title: '', moduleName: '', priority: '', deadlineFrom: '', deadlineTo: '' }
+
 export default function TasksPage() {
   const { isAuthenticated } = useAuth()
   const { t } = useI18n()
@@ -83,6 +85,9 @@ export default function TasksPage() {
   const [previewing, setPreviewing] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [previewAssignments, setPreviewAssignments] = useState([])
+
+  const [filterForm, setFilterForm] = useState(EMPTY_FILTER)
+  const [activeFilter, setActiveFilter] = useState(null)
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -164,6 +169,25 @@ export default function TasksPage() {
     const fromRows = rows.map((x) => String(x.moduleName || '').trim()).filter(Boolean)
     return Array.from(new Set([...moduleOptions, ...fromRows]))
   }, [moduleOptions, rows])
+
+  const filteredRows = useMemo(() => {
+    if (!activeFilter) return rows
+    const { title, moduleName, priority, deadlineFrom, deadlineTo } = activeFilter
+    return rows.filter((row) => {
+      if (title && !String(row.title || '').toLowerCase().includes(title.toLowerCase())) return false
+      if (moduleName && !String(row.moduleName || '').toLowerCase().includes(moduleName.toLowerCase())) return false
+      if (priority && row.priority !== priority) return false
+      if (deadlineFrom) {
+        if (!row.deadline) return false
+        if (new Date(row.deadline) < new Date(deadlineFrom)) return false
+      }
+      if (deadlineTo) {
+        if (!row.deadline) return false
+        if (new Date(row.deadline) > new Date(`${deadlineTo}T23:59:59`)) return false
+      }
+      return true
+    })
+  }, [rows, activeFilter])
 
   const openNew = () => {
     setEditing(null)
@@ -272,7 +296,7 @@ export default function TasksPage() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: 20,
+              marginBottom: 14,
               padding: '0 10px',
               gap: 16,
               flexWrap: 'wrap',
@@ -289,6 +313,93 @@ export default function TasksPage() {
 
             <div style={{ fontSize: 14, fontWeight: 'bold' }}>
               {t('tasks.priorityLegendDemo')}
+            </div>
+          </div>
+
+          {/* Search bar */}
+          <div
+            style={{
+              margin: '0 10px 16px 10px',
+              border: `2px solid var(--ink)`,
+              borderRadius: 16,
+              padding: '12px 14px',
+              background: 'var(--btn-edit-bg)',
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 10,
+              alignItems: 'flex-end',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 140px' }}>
+              <label style={{ fontSize: 12, fontWeight: 'bold' }}>{t('tasks.searchTitle')}</label>
+              <input
+                value={filterForm.title}
+                onChange={(e) => setFilterForm((s) => ({ ...s, title: e.target.value }))}
+                placeholder={t('tasks.searchTitle')}
+                style={{ padding: '7px 10px', borderRadius: 10, border: `2px solid var(--ink)`, fontWeight: 'bold', fontSize: 13 }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 140px' }}>
+              <label style={{ fontSize: 12, fontWeight: 'bold' }}>{t('tasks.searchModule')}</label>
+              <input
+                value={filterForm.moduleName}
+                onChange={(e) => setFilterForm((s) => ({ ...s, moduleName: e.target.value }))}
+                placeholder={t('tasks.searchModule')}
+                list="module-datalist"
+                style={{ padding: '7px 10px', borderRadius: 10, border: `2px solid var(--ink)`, fontWeight: 'bold', fontSize: 13 }}
+              />
+              <datalist id="module-datalist">
+                {selectableModules.map((m) => <option key={m} value={m} />)}
+              </datalist>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '0 1 120px' }}>
+              <label style={{ fontSize: 12, fontWeight: 'bold' }}>{t('tasks.searchPriority')}</label>
+              <select
+                value={filterForm.priority}
+                onChange={(e) => setFilterForm((s) => ({ ...s, priority: e.target.value }))}
+                style={{ padding: '7px 10px', borderRadius: 10, border: `2px solid var(--ink)`, fontWeight: 'bold', fontSize: 13, background: 'white' }}
+              >
+                <option value="">{t('tasks.searchAll')}</option>
+                <option value="H">{t('tasks.priorityHigh')} (H)</option>
+                <option value="M">{t('tasks.priorityMedium')} (M)</option>
+                <option value="L">{t('tasks.priorityLow')} (L)</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '0 1 150px' }}>
+              <label style={{ fontSize: 12, fontWeight: 'bold' }}>{t('tasks.searchDeadlineFrom')}</label>
+              <input
+                type="date"
+                value={filterForm.deadlineFrom}
+                onChange={(e) => setFilterForm((s) => ({ ...s, deadlineFrom: e.target.value }))}
+                style={{ padding: '7px 10px', borderRadius: 10, border: `2px solid var(--ink)`, fontWeight: 'bold', fontSize: 13 }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '0 1 150px' }}>
+              <label style={{ fontSize: 12, fontWeight: 'bold' }}>{t('tasks.searchDeadlineTo')}</label>
+              <input
+                type="date"
+                value={filterForm.deadlineTo}
+                onChange={(e) => setFilterForm((s) => ({ ...s, deadlineTo: e.target.value }))}
+                style={{ padding: '7px 10px', borderRadius: 10, border: `2px solid var(--ink)`, fontWeight: 'bold', fontSize: 13 }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', paddingBottom: 0 }}>
+              <button
+                type="button"
+                className="btn"
+                style={{ background: 'var(--btn-add-bg)', padding: '8px 18px' }}
+                onClick={() => setActiveFilter({ ...filterForm })}
+              >
+                {t('tasks.search')}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                style={{ background: 'white', padding: '8px 14px' }}
+                onClick={() => { setFilterForm(EMPTY_FILTER); setActiveFilter(null) }}
+              >
+                {t('tasks.reset')}
+              </button>
             </div>
           </div>
 
@@ -340,7 +451,7 @@ export default function TasksPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
+                  {filteredRows.map((row) => (
                     <tr key={row.id}>
                       <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{row.title}</td>
                       <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{formatDate(row.deadline)}</td>
@@ -387,10 +498,10 @@ export default function TasksPage() {
                     </tr>
                   ))}
 
-                  {!rows.length ? (
+                  {!filteredRows.length ? (
                     <tr>
                       <td colSpan={7} style={{ color: '#999', padding: 20 }}>
-                        {loading ? t('tasks.loading') : t('tasks.noTasks')}
+                        {loading ? t('tasks.loading') : activeFilter ? t('tasks.noMatchTasks') : t('tasks.noTasks')}
                       </td>
                     </tr>
                   ) : null}
