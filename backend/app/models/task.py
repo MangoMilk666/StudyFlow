@@ -56,7 +56,7 @@ class TaskOut(BaseModel):
     status: str | None = None
     priority: str | None = None
     deadline: str | None = None
-    module: ModuleOut | dict | None = None
+    module: ModuleOut | dict | str | None = None
     moduleName: str | None = None
     source: TaskSource | dict | None = None
     timeSpent: int | float | None = None
