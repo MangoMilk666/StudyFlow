@@ -83,8 +83,8 @@ a {
 
 .sf-canvas-sync-fab {
   position: absolute;
-  right: clamp(16px, 2.2vw, 30px);
-  bottom: clamp(16px, 2.2vw, 30px);
+  right: 14px;
+  bottom: 14px;
   width: 44px;
   height: 44px;
   border-radius: 999px;

@@ -12,19 +12,28 @@ import re
 - 工具：任务统计 /（预留）Canvas 同步 /（可选）RAG 检索上下文
 
 设计取舍：
-- FastAPI 通过 Depends(get_current_user) 注入“当前登录用户”，用于做权限隔离。
-- tools 是“可被模型调用的函数”。模型会在需要信息时主动调用，再把工具结果组织成最终回复。
+- FastAPI 通过 Depends(get_current_user) 注入"当前登录用户"，用于做权限隔离。
+- tools 是"可被模型调用的函数"。模型会在需要信息时主动调用，再把工具结果组织成最终回复。
 - RAG（检索增强生成）是可选能力：没配置 OPENAI_API_KEY 时直接 503，不影响其它业务 API。
 """
 
 import json
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, Body, Depends
 
 from app.config import get_settings
 from app.deps import get_current_user
 from app.errors import ApiError
+from app.services.canvas_client import (
+    CanvasNotConfiguredError,
+    _get_auth_headers,
+    canvas_base_url,
+    html_to_text,
+    list_assignments,
+    list_courses,
+)
 from app.services.db import MongoNotReadyError, get_db_checked
 from app.services.user_ai_config import get_user_ai_config
 from app.services.rag import get_user_retriever
@@ -43,7 +52,7 @@ def _map_llm_error(e: Exception) -> ApiError | None:
 
     说明：
     - OpenAI API 可能返回 401（invalid_api_key）、429（rate limit）等。
-    - 这些不是“我们系统的 JWT 401”，否则前端会误以为登录过期并清除登录态。
+    - 这些不是"我们系统的 JWT 401"，否则前端会误以为登录过期并清除登录态。
     - 因此这里统一返回 503/502 等更合适的状态码，同时给出可读消息。
     """
 
@@ -56,7 +65,7 @@ def _map_llm_error(e: Exception) -> ApiError | None:
         status = None
 
     lowered = msg.lower()
-    # 这里的 401 是“上游模型服务”的 401，不是我们的 JWT 401（否则会触发前端登出）
+    # 这里的 401 是"上游模型服务"的 401，不是我们的 JWT 401（否则会触发前端登出）
     if status == 401 or "invalid_api_key" in lowered or "incorrect api key" in lowered:
         return ApiError(503, "OpenAI API Key 无效：请检查 OPENAI_API_KEY（或 OPENAI_BASE_URL 是否匹配）")
     if status == 429 or "rate limit" in lowered or "quota" in lowered:
@@ -287,6 +296,192 @@ async def _create_new_task(
             ).model_dump(by_alias=True)
     return _serialize_task(created, mod_doc)
 
+async def _sync_canvas_assignments(
+    user_id: str,
+    course_filter: list[str],
+    import_to_tasks: bool = False,
+) -> dict:
+    """给 Agent 工具使用：拉取 Canvas 课程作业，可选写入 tasks 数据库。
+
+    参数：
+    - course_filter：课程名称/代码/ID 关键词列表，None 表示全部课程。
+                     匹配规则：关键词是课程名或 course_code 的子串（大小写不敏感），或等于课程 ID。
+    - import_to_tasks：True 时同时把作业幂等写入 tasks 集合。
+
+    返回 dict：
+    {
+        "ok": True,
+        "courses": [
+            {
+                "courseId": "...",
+                "courseName": "...",
+                "assignments": [{"assignmentId": "...", "name": "...", "deadline": "YYYY-MM-DD" | null}]
+            }
+        ],
+        "imported": {"created": N, "updated": N}   # 仅当 import_to_tasks=True 时出现
+    }
+    失败时返回 {"ok": False, "error": "..."}。
+    """
+    try:
+        async with httpx.AsyncClient(
+            base_url=canvas_base_url(),
+            headers=_get_auth_headers(),
+            timeout=10.0,
+        ) as client:
+            all_courses = await list_courses(client)
+
+            # 按关键词过滤课程（名称/课程代码子串匹配，或课程 ID 精确匹配）
+            if course_filter:
+                filters = [str(f).strip().lower() for f in course_filter if f]
+                selected = [
+                    c for c in all_courses
+                    if any(
+                        f in str(c.get("name") or "").lower()
+                        or f in str(c.get("course_code") or "").lower()
+                        or f == str(c.get("id") or "")
+                        for f in filters
+                    )
+                ]
+                if not selected:
+                    available = [str(c.get("name") or "") for c in all_courses]
+                    return {
+                        "ok": False,
+                        "error": f"No courses matched {course_filter}. Available courses: {available}",
+                    }
+            else:
+                selected = all_courses
+
+            # 拉取每门课程的作业列表（保留 raw 数据供后续入库使用）
+            # 注意：部分课程即使能出现在 /courses 列表里，也可能因为权限/可见性限制导致 /assignments 返回 403。
+            # 这里按课程粒度容错，避免“一门课 403 导致全量失败”。
+            entries: list[dict] = []
+            for course in selected:
+                try:
+                    raw = await list_assignments(client, course.get("id"))
+                    entries.append({"course": course, "raw": raw, "error": None})
+                except httpx.HTTPStatusError as e:
+                    status = getattr(e.response, "status_code", 0)
+                    try:
+                        body = (e.response.text or "").strip()[:200]
+                    except Exception:
+                        body = ""
+                    msg = f"HTTP {status}"
+                    if body:
+                        msg += f" | {body}"
+                    entries.append({"course": course, "raw": [], "error": msg})
+
+    except CanvasNotConfiguredError as e:
+        return {"ok": False, "error": f"Canvas not configured: {e}"}
+    except httpx.HTTPStatusError as e:
+        status = getattr(e.response, "status_code", 0)
+        try:
+            body = (e.response.text or "").strip()[:300]
+        except Exception:
+            body = ""
+        detail = f"Canvas API HTTP {status}"
+        if body:
+            detail += f" | Canvas says: {body}"
+        if status in (401, 403):
+            detail += " | Hint: Token may be invalid, expired, or missing required scopes. Check CANVAS_TOKEN in .env."
+        return {"ok": False, "error": detail}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+    # 构建展示结构（deadline 统一格式化为 YYYY-MM-DD）
+    courses_out: list[dict] = []
+    for entry in entries:
+        course = entry["course"]
+        assignments_out: list[dict] = []
+        for a in entry["raw"]:
+            title = str(a.get("name") or "").strip()
+            if not title:
+                continue
+            due_at = a.get("due_at")
+            deadline_str: str | None = None
+            if due_at:
+                try:
+                    dt = datetime.fromisoformat(str(due_at).replace("Z", "+00:00"))
+                    deadline_str = dt.strftime("%Y-%m-%d")
+                except Exception:
+                    deadline_str = str(due_at)[:10] if len(str(due_at)) >= 10 else None
+            assignments_out.append({
+                "assignmentId": str(a.get("id") or ""),
+                "name": title,
+                "deadline": deadline_str,
+            })
+        courses_out.append({
+            "courseId": str(course.get("id") or ""),
+            "courseName": str(course.get("name") or ""),
+            "assignments": assignments_out,
+            "error": entry.get("error"),
+        })
+
+    result: dict = {"ok": True, "courses": courses_out}
+
+    if not import_to_tasks:
+        return result
+
+    # 写入 tasks 数据库（幂等：以 source.type/courseId/assignmentId 为唯一键）
+    try:
+        db = await get_db_checked()
+    except MongoNotReadyError:
+        result["imported"] = {"error": "MongoDB connection failed"}
+        return result
+
+    user_oid = to_object_id(user_id)
+    created = 0
+    updated = 0
+
+    for entry in entries:
+        course = entry["course"]
+        course_id = str(course.get("id") or "")
+        course_name = str(course.get("name") or "")
+
+        for a in entry["raw"]:
+            assignment_id = str(a.get("id") or "")
+            title = str(a.get("name") or "").strip()
+            if not assignment_id or not title:
+                continue
+
+            description = html_to_text(a.get("description"))
+            deadline = parse_datetime(a.get("due_at"))
+            unlock_at = parse_datetime(a.get("unlock_at"))
+            now = datetime.now(timezone.utc)
+
+            update_doc: dict = {
+                "userId": user_oid,
+                "title": title,
+                "description": description,
+                "deadline": deadline,
+                "moduleName": course_name,
+                "priority": "Medium",
+                "status": "To Do",
+                "source": {"type": "canvas", "courseId": course_id, "assignmentId": assignment_id},
+                "updatedAt": now,
+            }
+            if unlock_at is not None:
+                update_doc["unlockAt"] = unlock_at
+
+            existing = await db.tasks.find_one({
+                "userId": user_oid,
+                "source.type": "canvas",
+                "source.courseId": course_id,
+                "source.assignmentId": assignment_id,
+            })
+            if existing:
+                await db.tasks.update_one({"_id": existing.get("_id")}, {"$set": update_doc})
+                updated += 1
+            else:
+                await db.tasks.insert_one({
+                    **update_doc,
+                    "createdAt": now,
+                    "timeSpent": 0,
+                    "subtasks": [],
+                })
+                created += 1
+
+    result["imported"] = {"created": created, "updated": updated}
+    return result
 
 @router.get("/health")
 async def ai_health(current_user: dict = Depends(get_current_user)):
@@ -365,7 +560,7 @@ async def chat(
         raise ApiError(503, "LLM not configured")
 
     try:
-        # 这些依赖是“可选能力”：没装 langchain 相关包时不影响其它业务 API
+        # 这些依赖是"可选能力"：没装 langchain 相关包时不影响其它业务 API
         from langchain_core.tools import tool
         from langchain_openai import ChatOpenAI
         from langgraph.prebuilt import create_react_agent
@@ -382,19 +577,26 @@ async def chat(
         工具的返回值统一用字符串，便于 Agent 将其纳入对话上下文。
         """
 
-        # 工具返回统一用字符串：避免 Agent 在不同工具之间处理“结构化对象”的兼容问题
+        # 工具返回统一用字符串：避免 Agent 在不同工具之间处理"结构化对象"的兼容问题
         return json.dumps(await _get_task_stats(user_id))
 
     @tool
-    async def sync_canvas_assignments(courseIds: list[str] | None = None) -> str:
-        """工具：同步 Canvas 作业（预留）。
+    async def sync_canvas_assignments(
+        course_filter: list[str] | None = None,
+        import_to_tasks: bool = False,
+    ) -> str:
+        """工具：拉取当前用户的 Canvas 课程作业列表，可选写入 tasks。
 
-        说明：
-        - 当前版本只返回模拟结果，便于演示 Agent 的“工具调用”能力。
-        - 未来可在这里接 app/services/canvas_client.py 实现真实同步。
+        参数：
+        - course_filter: 要筛选的课程名称/代码/ID 关键词列表。传空列表 [] 表示拉取所有课程。
+                         例如：["CS3103"] 或 ["Networks", "Database"] 或 []（全部）。
+        - import_to_tasks: 传 false 仅展示数据；传 true 同时把作业保存到 tasks 数据库（幂等）。
+
+        返回 JSON 字符串，包含 courses（每门课含 assignments 列表及 deadline）。
+        import_to_tasks=true 时还包含 imported.created / imported.updated 计数。
         """
-
-        return json.dumps({"ok": True, "created": 0, "updated": 0, "skipped": 0, "courseIds": courseIds or []})
+        result = await _sync_canvas_assignments(user_id, course_filter or [], import_to_tasks)
+        return json.dumps(result, ensure_ascii=False)
 
     @tool
     async def create_new_task(
@@ -470,18 +672,44 @@ async def chat(
         llm_kwargs.pop("base_url", None)
         llm = ChatOpenAI(**llm_kwargs)
 
-    # create_react_agent 会构建一个“可调用工具”的 Agent Graph。
+    # create_react_agent 会构建一个"可调用工具"的 Agent Graph。
     # 输入 state: {"messages": [...] }，输出 state 仍包含 messages（含工具调用与最终回复）。
     graph = create_react_agent(
         llm,
         tools,
-        prompt="You are StudyFlow AI. Use tools when helpful to answer questions or perform requested actions. Do not claim actions happened unless a tool call succeeded. Keep responses concise and actionable.",
+        prompt="""You are StudyFlow AI assistant. Use tools when helpful.
+
+## Canvas assignment rules
+- ANY request about fetching / listing / showing Canvas assignments → call sync_canvas_assignments.
+- Default: import_to_tasks=False (display only). Only set import_to_tasks=True when the user explicitly says to add / import / save assignments to their task list.
+- Use course_filter to match the course names or codes the user mentions (e.g. ["CS3103"] or ["Networks", "Database"]). Pass None to fetch all courses.
+- If a user says "帮我把 XXX 和 YYY 的作业加入 tasks", set course_filter=["XXX","YYY"] and import_to_tasks=True.
+
+## Canvas response format
+When displaying assignments, always reply in this exact format (use the user's language):
+我识别到你以下 N 门课程的作业：
+
+[Course Name]：
+  作业名，deadline YYYY-MM-DD
+  作业名，deadline YYYY-MM-DD
+
+[Course Name]：
+  作业名，deadline YYYY-MM-DD
+  ...
+
+If deadline is null, write "deadline 未设置".
+When import_to_tasks=True succeeded, append: "已将上述作业导入 tasks（新增 X 条，更新 Y 条）。"
+
+## General rules
+- Do not claim actions happened unless a tool call returned ok=true.
+- Keep responses concise and actionable.
+- Respond in the same language the user is using.""",
     )
 
     try:
         from langchain_core.messages import HumanMessage
 
-        # 把 history 交给模型：让它“记住”上下文（否则每次都是单轮问答）
+        # 把 history 交给模型：让它"记住"上下文（否则每次都是单轮问答）
         msgs = [*_history_to_messages(history), HumanMessage(content=message)]
         # ainvoke 是异步调用：模型可能在中间触发工具调用，再继续推理。
         state = await graph.ainvoke({"messages": msgs})
