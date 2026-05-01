@@ -16,8 +16,6 @@ services:
     environment:
       - MONGO_URI=${MONGO_URI:-}
       - JWT_SECRET=${JWT_SECRET:-}
-      - PORT=${PORT:-8000}
-      - MOCK_MODE=${MOCK_MODE:-false}
       - CANVAS_BASE_URL=${CANVAS_BASE_URL:-}
       - CANVAS_TOKEN=${CANVAS_TOKEN:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
