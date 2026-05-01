@@ -12,13 +12,13 @@ START_DB=1
 usage() {
   cat <<'EOF'
 用法：
-  ./dev-up.sh [--mock|--real] [--env local|prod] [--no-frontend] [--no-backend] [--no-db]
+  ./dev-up.sh [--mock|--real] [--no-frontend] [--no-backend] [--no-db]
 
 说明：
   - 默认启动前端(5173) + 后端(8000)。
   - mock 模式：后端不连接 MongoDB，使用 mock 路由（更快）。
   - real 模式：后端连接 MongoDB，并启用 JWT 校验等真实逻辑。
-  - 环境变量文件：根目录的 .env.local / .env.prod（建议先从模板复制）。
+  - 环境变量文件：根目录的 .env（建议先从 .env.prod.example 复制再改）。
 
 示例：
   # 一键启动（默认 local 环境），并选择 mock 模式
@@ -41,10 +41,6 @@ while [[ $# -gt 0 ]]; do
     --real)
       MODE="real"
       shift
-      ;;
-    --env)
-      ENV_NAME="${2:-}"
-      shift 2
       ;;
     --no-frontend)
       START_FRONTEND=0
@@ -83,10 +79,10 @@ if [[ -z "$MODE" ]]; then
   fi
 fi
 
-ENV_FILE="$ROOT_DIR/.env.$ENV_NAME"
+ENV_FILE="$ROOT_DIR/.env"
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "未找到环境文件：$ENV_FILE" >&2
-  echo "请先复制模板：cp .env.${ENV_NAME}.example .env.${ENV_NAME}" >&2
+  echo "请先复制模板：cp .env.prod.example .env" >&2
   exit 1
 fi
 

@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+const API_BASE_URL = '/api'
 const LS_TOKEN_KEY = 'sf_token_v1'
 const LS_USER_KEY = 'sf_user_v1'
 
