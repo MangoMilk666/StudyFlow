@@ -2,6 +2,12 @@
 
 Project Statement（PDF）：[docs/Project_Statement.pdf](docs/Project_Statement.pdf)
 
+## 致谢
+本项目源自并演进于我在NUS IT5007 课程中完成的**小组项目**。
+- 原始团队成员：Sang Ziheng, Wu Kaifan, Tong Yicheng
+- 我的角色：负责后端服务的主开发
+- 目的：本仓库用于在原课程项目范围之外进行个人持续迭代，包括功能完善、重构与新特性集成。
+
 ## 项目简介
 
 StudyFlow 是一个面向学生的效率管理应用。以看板式任务管理为核心，集成番茄钟专注计时、统计分析、基于 RAG（检索增强生成）的 AI 助手，以及 Canvas LMS 课程导入功能，为学生提供一个统一的学习工作台。目标是让学生在不切换多个工具的前提下，完整掌握自己的学习负载、时间投入和进度情况。

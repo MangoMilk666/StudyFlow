@@ -2,6 +2,11 @@
 
 Project Statement (PDF): [docs/Project_Statement.pdf](docs/Project_Statement.pdf)
 
+## Acknowledgements
+This project is an evolution of a **group project** developed for the IT5007 course at NUS. 
+- Original Team Members: Sang Ziheng, Wu Kaifan, Tong Yicheng
+- My Role: Lead developer responsible for backend service
+- Purpose: This repository serves as a personal sandbox for further refinement, refactoring, and integration of new features beyond the scope of the original course project.
 ## Overview
 
 StudyFlow is a student-oriented productivity management application. It centers on a Kanban-style task board and combines Pomodoro focus timers, statistical analysis, an AI assistant powered by RAG (Retrieval-Augmented Generation), and Canvas LMS integration into a single unified workspace. The goal is to give students a coherent view of their study workload, time investment, and progress without switching between multiple tools.
