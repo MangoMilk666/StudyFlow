@@ -76,8 +76,36 @@ class Settings(BaseSettings):
 
     @property
     def mongo_uri(self) -> str:
-        if self.MONGO_URI and str(self.MONGO_URI).strip():
-            return str(self.MONGO_URI).strip()
+        raw_uri = str(self.MONGO_URI or "").strip()
+        if raw_uri:
+            username = (self.MONGO_USERNAME or "").strip() or None
+            password = (self.MONGO_PASSWORD or "").strip() or None
+            auth_source = (self.MONGO_AUTH_SOURCE or "").strip() or None
+
+            try:
+                from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+
+                p = urlparse(raw_uri)
+                netloc = p.netloc
+                has_credentials = "@" in netloc
+
+                if (not has_credentials) and username and password:
+                    user_part = quote_plus(username)
+                    pass_part = quote_plus(password)
+                    netloc = f"{user_part}:{pass_part}@{netloc}"
+
+                if netloc != p.netloc or auth_source:
+                    query_pairs = dict(parse_qsl(p.query, keep_blank_values=True))
+                    if auth_source and "authSource" not in query_pairs:
+                        query_pairs["authSource"] = auth_source
+                    new_query = urlencode(query_pairs, doseq=True)
+                    return urlunparse(
+                        (p.scheme, netloc or p.netloc, p.path, p.params, new_query, p.fragment)
+                    )
+            except Exception:
+                return raw_uri
+
+            return raw_uri
 
         in_container = (
             str(os.environ.get("IN_DOCKER") or "").lower() in {"1", "true", "yes"}
