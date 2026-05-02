@@ -1,0 +1,66 @@
+name: Deploy StudyFlow
+
+on:
+  push:
+    branches: ["prod"]
+  workflow_dispatch:
+
+concurrency:
+  group: studyflow-prod-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          port: ${{ vars.SERVER_PORT || 22 }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            APP_DIR="${{ vars.SERVER_APP_DIR }}"
+            BRANCH="prod"
+
+            cd "$APP_DIR"
+
+            if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+              git fetch --all --prune
+              git checkout "$BRANCH"
+              git reset --hard "origin/$BRANCH"
+            fi
+
+            if [[ -z "$APP_DIR" ]]; then echo "Missing variable: SERVER_APP_DIR" >&2; exit 1; fi
+            if [[ -z "${{ secrets.MONGO_URI }}" ]]; then echo "Missing secret: MONGO_URI" >&2; exit 1; fi
+            if [[ -z "${{ secrets.JWT_SECRET }}" ]]; then echo "Missing secret: JWT_SECRET" >&2; exit 1; fi
+            if [[ -z "${{ vars.CORS_ORIGINS }}" ]]; then echo "Missing variable: CORS_ORIGINS" >&2; exit 1; fi
+
+            umask 077
+            cat > .env <<EOF
+            COMPOSE_PROJECT_NAME=${{ vars.COMPOSE_PROJECT_NAME || 'studyflow' }}
+            
+            MONGO_URI=${{ secrets.MONGO_URI }}
+            MONGO_USERNAME=${{ vars.MONGO_USERNAME }}
+            MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}
+            MONGO_AUTH_SOURCE=${{ vars.MONGO_AUTH_SOURCE || 'admin' }}
+            
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            
+            CANVAS_BASE_URL=${{ vars.CANVAS_BASE_URL }}
+            CANVAS_TOKEN=${{ secrets.CANVAS_TOKEN }}
+            
+            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+            OPENAI_MODEL=${{ vars.OPENAI_MODEL || 'gpt-4.1-mini' }}
+            
+            CHROMA_PERSIST_DIR=${{ vars.CHROMA_PERSIST_DIR || '/data/chroma' }}
+            
+            CORS_ORIGINS=${{ vars.CORS_ORIGINS }}
+            EOF
+
+            chmod +x ./deploy.sh
+            ./deploy.sh

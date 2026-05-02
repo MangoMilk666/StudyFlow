@@ -17,8 +17,8 @@ __pycache__/
 
 # --- Environment Variables (CRITICAL) ---
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.prod.example
 *.env
 
 # --- OS / IDE ---
@@ -41,6 +41,7 @@ yarn-error.log*
 # --- Docker & DB ---
 /data/
 docker-compose.override.yml
+docker-compose.override.yaml
 
 # --- Python venv / RAG cache ---
 backend/.venv/
