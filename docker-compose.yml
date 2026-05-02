@@ -15,6 +15,9 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - MONGO_URI=${MONGO_URI:-}
+      - MONGO_USERNAME=${MONGO_USERNAME:-}
+      - MONGO_PASSWORD=${MONGO_PASSWORD:-}
+      - MONGO_AUTH_SOURCE=${MONGO_AUTH_SOURCE:-admin}
       - JWT_SECRET=${JWT_SECRET:-}
       - CANVAS_BASE_URL=${CANVAS_BASE_URL:-}
       - CANVAS_TOKEN=${CANVAS_TOKEN:-}
