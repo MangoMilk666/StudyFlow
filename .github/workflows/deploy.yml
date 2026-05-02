@@ -42,7 +42,7 @@ jobs:
             if [[ -z "${{ vars.CORS_ORIGINS }}" ]]; then echo "Missing variable: CORS_ORIGINS" >&2; exit 1; fi
 
             umask 077
-            cat > .env <<EOF
+            cat > .env <<'EOF'
             COMPOSE_PROJECT_NAME=${{ vars.COMPOSE_PROJECT_NAME || 'studyflow' }}
             
             MONGO_URI=${{ secrets.MONGO_URI }}

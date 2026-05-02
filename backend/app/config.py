@@ -89,6 +89,12 @@ class Settings(BaseSettings):
                 netloc = p.netloc
                 has_credentials = "@" in netloc
 
+                if has_credentials and netloc.count("@") > 1:
+                    raise ValueError(
+                        "Invalid MONGO_URI: credentials contain an unescaped '@'. "
+                        "Percent-encode '@' as '%40' or provide credentials via MONGO_USERNAME/MONGO_PASSWORD."
+                    )
+
                 if (not has_credentials) and username and password:
                     user_part = quote_plus(username)
                     pass_part = quote_plus(password)
