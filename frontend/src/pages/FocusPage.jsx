@@ -19,6 +19,8 @@ export default function FocusPage() {
   useAuth()
   const { t } = useI18n()
 
+  const bunnyVideoRef = useRef(null)
+
   const [currentTaskId, setCurrentTaskId] = useState('')
 
   const [timeLeft, setTimeLeft] = useState(DEFAULT_SECONDS)
@@ -101,6 +103,25 @@ export default function FocusPage() {
     }, 250)
 
     return () => window.clearInterval(id)
+  }, [isRunning])
+
+  useEffect(() => {
+    const el = bunnyVideoRef.current
+    if (!el) return
+
+    if (isRunning) {
+      const p = el.play()
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {})
+      }
+      return
+    }
+
+    try {
+      el.pause()
+    } catch {
+      // ignore
+    }
   }, [isRunning])
 
   useEffect(() => {
@@ -383,6 +404,42 @@ export default function FocusPage() {
                   >
                     {t('focus.markDone')}
                   </button>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  border: `3px solid var(--ink)`,
+                  borderRadius: 24,
+                  padding: 12,
+                  background: 'white',
+                }}
+              >
+                <div
+                  style={{
+                    width: '100%',
+                    height: 180,
+                    borderRadius: 18,
+                    border: `2px solid var(--ink)`,
+                    overflow: 'hidden',
+                    background: '#fff',
+                  }}
+                  aria-hidden="true"
+                >
+                  <video
+                    ref={bunnyVideoRef}
+                    src="/assets/bunny-book.mp4"
+                    muted
+                    playsInline
+                    loop
+                    preload="metadata"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      pointerEvents: 'none',
+                    }}
+                  />
                 </div>
               </div>
             </section>
