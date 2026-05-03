@@ -70,12 +70,21 @@ function truncateLabel(value, maxLen) {
   return `${s.slice(0, n)}...`
 }
 
-function TruncatedAxisTick({ x, y, payload }) {
+function TruncatedAxisTick({ x, y, payload, maxLen, angle, textAnchor, dy }) {
   const full = String(payload?.value ?? '')
-  const display = truncateLabel(full, 4)
+  const display = truncateLabel(full, maxLen || 4)
+  const a = Number(angle || 0)
   return (
     <g transform={`translate(${x},${y})`}>
-      <text x={0} y={0} dy={16} textAnchor="middle" fill="#666" style={{ fontSize: 12 }}>
+      <text
+        x={0}
+        y={0}
+        dy={dy ?? 16}
+        textAnchor={textAnchor || 'middle'}
+        fill="#666"
+        style={{ fontSize: 12 }}
+        transform={a ? `rotate(${a})` : undefined}
+      >
         <title>{full}</title>
         {display}
       </text>
@@ -238,17 +247,55 @@ export default function StatsPage() {
                       <div style={{ flex: '1 1 auto', minHeight: 0 }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={completionData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
+                            <Pie
+                              data={completionData}
+                              dataKey="value"
+                              nameKey="name"
+                              cx="50%"
+                              cy="46%"
+                              outerRadius={64}
+                              labelLine={false}
+                            >
                               {completionData.map((_, idx) => (
                                 <Cell key={String(idx)} fill={completionColors[idx % completionColors.length]} />
                               ))}
                             </Pie>
                             <Tooltip />
-                            <Legend />
                           </PieChart>
                         </ResponsiveContainer>
                       </div>
-                      <div style={{ marginTop: 8, textAlign: 'center', fontWeight: 'bold', fontSize: 12 }}>
+                      <div
+                        style={{
+                          marginTop: 6,
+                          display: 'flex',
+                          justifyContent: 'center',
+                          gap: 14,
+                          flexWrap: 'wrap',
+                          fontWeight: 'bold',
+                          fontSize: 12,
+                        }}
+                      >
+                        {completionData.map((item, idx) => (
+                          <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span
+                              aria-hidden="true"
+                              style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: 999,
+                                border: '2px solid var(--ink)',
+                                background: completionColors[idx % completionColors.length],
+                                display: 'inline-block',
+                              }}
+                            />
+                            <span>
+                              {item.name}: {item.value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ marginTop: 6, textAlign: 'center', fontWeight: 'bold', fontSize: 12 }}>
                         🍅 x{Number(data?.pomodorosCompleted || 0)} · {Number(data?.focusMinutes || 0)} {t('stats.minutes')}
                       </div>
                     </div>
@@ -258,7 +305,12 @@ export default function StatsPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={moduleData}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-15} textAnchor="end" height={60} />
+                        <XAxis
+                          dataKey="name"
+                          interval={0}
+                          height={60}
+                          tick={<TruncatedAxisTick maxLen={6} angle={-15} textAnchor="end" dy={16} />}
+                        />
                         <YAxis />
                         <Tooltip />
                         <Legend />
