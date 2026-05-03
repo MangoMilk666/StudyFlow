@@ -18,7 +18,7 @@ usage() {
   - 默认启动前端(5173) + 后端(8000)。
   - mock 模式：后端不连接 MongoDB，使用 mock 路由（更快）。
   - real 模式：后端连接 MongoDB，并启用 JWT 校验等真实逻辑。
-  - 环境变量文件：根目录的 .env（建议先从 .env.prod.example 复制再改）。
+  - 环境变量文件：根目录的 .env（可选使用 .env.local 覆盖 .env 中的同名变量）。
 
 示例：
   # 一键启动（默认 local 环境），并选择 mock 模式
@@ -85,6 +85,8 @@ if [[ ! -f "$ENV_FILE" ]]; then
   echo "请先复制模板：cp .env.prod.example .env" >&2
   exit 1
 fi
+
+ENV_LOCAL_FILE="$ROOT_DIR/.env.local"
 
 load_env() {
   local file="$1"
@@ -188,6 +190,9 @@ cleanup() {
 trap cleanup EXIT
 
 load_env "$ENV_FILE"
+if [[ -f "$ENV_LOCAL_FILE" ]]; then
+  load_env "$ENV_LOCAL_FILE"
+fi
 
 if [[ "$MODE" == "mock" ]]; then
   export MOCK_MODE=true
@@ -199,6 +204,9 @@ echo "" >&2
 echo "===== StudyFlow 联调启动 =====" >&2
 echo "模式：$MODE" >&2
 echo "环境文件：$ENV_FILE" >&2
+if [[ -f "$ENV_LOCAL_FILE" ]]; then
+  echo "覆盖文件：$ENV_LOCAL_FILE" >&2
+fi
 echo "后端：http://127.0.0.1:8000" >&2
 echo "前端：http://localhost:5173" >&2
 echo "==============================" >&2

@@ -150,18 +150,13 @@ MongoDB is used as the sole database. Collections:
 
 The following files are committed to the repository as templates. Copy and rename them (removing `.example`) to create your actual configuration. Never commit files containing real secrets.
 
-### `.env.example`
+### `.env.prod.example`
 
-Docker Compose environment template for production-style deployments. Variables:
+Production variable reference. In local development, copy it to `.env` and fill in values as needed.
 
-- `CANVAS_BASE_URL` - base URL of your Canvas LMS instance (e.g., `https://school.instructure.com`)
-- `CANVAS_TOKEN` - Canvas personal access token
+This project supports an optional `.env.local` file to override variables in `.env` when running `dev-up.sh`.
 
-Docker Compose reads the root `.env` automatically. Additional backend variables (MongoDB URI, JWT secret, OpenAI key, etc.) are defined in `.env.local.example`.
-
-### `.env.local.example`
-
-Full local development variable reference used by `dev-up.sh`. Key variables:
+Key variables:
 
 | Variable | Purpose |
 |---|---|
@@ -174,10 +169,6 @@ Full local development variable reference used by `dev-up.sh`. Key variables:
 | `OPENAI_BASE_URL` | Override for compatible third-party OpenAI endpoints |
 | `CHROMA_PERSIST_DIR` | Local directory for the ChromaDB vector index |
 | `CORS_ORIGINS` | Allowed frontend origins for CORS |
-
-### `.env.prod.example`
-
-Production variable reference. Structure mirrors `.env.local.example` but intended for deployment platforms (CI/CD environment injection). Contains a `MONGO_URI` pointing to a production Atlas cluster or self-hosted instance, and a strong `JWT_SECRET`.
 
 ### `docker-compose.yml`
 
@@ -197,7 +188,7 @@ Nginx configuration for the production frontend container:
 
 ### `dev-up.sh`
 
-Convenience script for local development. Accepts `--mock` (starts backend in mock mode, no MongoDB needed) or `--real` (starts backend with a real MongoDB connection). Runs Docker Compose with the appropriate environment overlay.
+Convenience script for local development. Accepts `--mock` (starts backend in mock mode, no MongoDB needed) or `--real` (starts backend with a real MongoDB connection). Starts FastAPI (uvicorn reload) and the Vite dev server.
 
 ---
 
@@ -205,8 +196,6 @@ Convenience script for local development. Accepts `--mock` (starts backend in mo
 
 | File | Contents |
 |---|---|
-| `API_EXAMPLES.md` | curl-based API usage examples for all endpoints |
-| `docs/requirements.md` | Functional and non-functional requirements |
+| `docs/Project_Statement.md` | Product statement and system overview |
 | `docs/database_schema.md` | MongoDB collection schemas |
-| `docs/PROJECT_STRUCTURE.md` | Detailed project layout notes |
-| `docs/update-record.md` | Aggregated change log |
+| `docs/design/` | Wireframes and HTML prototypes |
