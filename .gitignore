@@ -53,3 +53,6 @@ backend/.chroma/
 # ignored directories
 /external_files/
 /demo/
+
+# vibe tools
+.trae/
