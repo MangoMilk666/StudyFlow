@@ -661,16 +661,27 @@ async def chat(
         "api_key": (user_ai.get("apiKey") or settings.OPENAI_API_KEY or "ollama"),
         "model": (user_ai.get("model") or settings.OPENAI_MODEL),
         "temperature": 0,
+        "timeout": 30,
+        "max_retries": 2,
     }
     if getattr(settings, "OPENAI_BASE_URL", None):
         # 允许切到本地/国内兼容平台（例如 Ollama 的 /v1）
         llm_kwargs["base_url"] = settings.OPENAI_BASE_URL
-    try:
-        llm = ChatOpenAI(**llm_kwargs)
-    except TypeError:
-        # 兼容旧版本 SDK：不支持 base_url 参数时就忽略（避免启动直接崩）
-        llm_kwargs.pop("base_url", None)
-        llm = ChatOpenAI(**llm_kwargs)
+
+    def _create_chat_llm(kwargs: dict[str, Any]):
+        try:
+            return ChatOpenAI(**kwargs)
+        except TypeError:
+            next_kwargs = {**kwargs}
+            next_kwargs.pop("base_url", None)
+            try:
+                return ChatOpenAI(**next_kwargs)
+            except TypeError:
+                next_kwargs.pop("timeout", None)
+                next_kwargs.pop("max_retries", None)
+                return ChatOpenAI(**next_kwargs)
+
+    llm = _create_chat_llm(llm_kwargs)
 
     # create_react_agent 会构建一个"可调用工具"的 Agent Graph。
     # 输入 state: {"messages": [...] }，输出 state 仍包含 messages（含工具调用与最终回复）。

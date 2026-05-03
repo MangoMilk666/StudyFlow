@@ -80,7 +80,11 @@ async def build_user_documents(user_id: str) -> list[dict[str, Any]]:
 def _create_embeddings(settings):
     from langchain_openai import OpenAIEmbeddings
 
-    emb_kwargs: dict[str, Any] = {"api_key": settings.OPENAI_API_KEY or "ollama"}
+    emb_kwargs: dict[str, Any] = {
+        "api_key": settings.OPENAI_API_KEY or "ollama",
+        "timeout": 30,
+        "max_retries": 2,
+    }
     if getattr(settings, "OPENAI_BASE_URL", None):
         emb_kwargs["base_url"] = settings.OPENAI_BASE_URL
     if getattr(settings, "OPENAI_EMBED_MODEL", None):
@@ -95,8 +99,13 @@ def _create_embeddings(settings):
         try:
             return OpenAIEmbeddings(**emb_kwargs)
         except TypeError:
-            emb_kwargs.pop("model", None)
-            return OpenAIEmbeddings(**emb_kwargs)
+            emb_kwargs.pop("timeout", None)
+            emb_kwargs.pop("max_retries", None)
+            try:
+                return OpenAIEmbeddings(**emb_kwargs)
+            except TypeError:
+                emb_kwargs.pop("model", None)
+                return OpenAIEmbeddings(**emb_kwargs)
 
 
 async def get_user_retriever(user_id: str):
