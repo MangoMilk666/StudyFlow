@@ -377,8 +377,14 @@ export default function SettingsPage() {
               </div>
             ) : null}
 
-            {isAuthenticated ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isAuthenticated ? '1fr 1fr' : '1fr',
+                gap: 18,
+              }}
+            >
+              {isAuthenticated ? (
                 <Card title={t('settings.profile')} color="white">
                   <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                     <div
@@ -439,17 +445,17 @@ export default function SettingsPage() {
                     </button>
                   </div>
                 </Card>
+              ) : null}
 
-                <Card title={t('settings.preferences')} color="var(--btn-edit-bg)">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                    <div style={{ fontWeight: 'bold' }}>{t('settings.languages')}</div>
-                    <button className="btn" type="button" style={{ background: 'white' }} onClick={() => toggleLanguage()} disabled={loading}>
-                      {t('settings.toggle')}
-                    </button>
-                  </div>
-                </Card>
-              </div>
-            ) : null}
+              <Card title={t('settings.preferences')} color="var(--btn-edit-bg)">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ fontWeight: 'bold' }}>{t('settings.languages')}</div>
+                  <button className="btn" type="button" style={{ background: 'white' }} onClick={() => toggleLanguage()} disabled={loading}>
+                    {t('settings.toggle')}
+                  </button>
+                </div>
+              </Card>
+            </div>
 
             {isAuthenticated ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
