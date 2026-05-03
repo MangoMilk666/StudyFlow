@@ -5,7 +5,7 @@ from __future__ import annotations
 提供两类统计：
 - /summary：统计页需要的四象限数据（完成/未完成、按模块耗时、Top 耗时任务、趋势）
   - 另外增加“番茄钟维度”的汇总：focusMinutes / pomodorosCompleted
-- /task/{taskId}：某个任务的番茄钟统计（仅统计 completed 的 timerlogs）
+- /task/{taskId}：某个任务的专注统计（累计所有 timerlogs；完成次数仅统计 completed）
 
 实现要点：
 - 使用 MongoDB aggregate 做分组统计（尽量减少 Python 端计算与 IO）
@@ -92,10 +92,12 @@ async def get_stats_summary(
     done = await db.tasks.count_documents({"userId": user_oid, "status": {"$in": ["Done", "done"]}})
     undone = max(int(total) - int(done), 0)
 
-    # 番茄钟维度：timerlogs 只累计 completed（自然完成的 25min），不中断也能统计“完成次数”
+    # 番茄钟维度：
+    # - focusMinutes 统计所有 timerlogs 的累计时长（包含中断）
+    # - pomodorosCompleted 只统计 completed（自然完成的 25min）
     focus_agg = await db.timerlogs.aggregate(
         [
-            {"$match": {"userId": user_oid, "status": "completed"}},
+            {"$match": {"userId": user_oid}},
             {
                 "$addFields": {
                     # sessionDate 可能被写成 string/null：统一转成 date，避免聚合直接报错
@@ -107,11 +109,19 @@ async def get_stats_summary(
                 }
             },
             {"$match": {"sessionDateSafe": {"$gte": start_utc, "$lte": now_utc}}},
-            {"$group": {"_id": None, "seconds": {"$sum": "$durationSafe"}, "pomodoros": {"$sum": 1}}},
+            {
+                "$group": {
+                    "_id": None,
+                    "seconds": {"$sum": "$durationSafe"},
+                    "pomodorosCompleted": {
+                        "$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}
+                    },
+                }
+            },
         ]
     ).to_list(length=1)
     focus_seconds = int((focus_agg[0] if focus_agg else {}).get("seconds") or 0)
-    pomodoros_completed = int((focus_agg[0] if focus_agg else {}).get("pomodoros") or 0)
+    pomodoros_completed = int((focus_agg[0] if focus_agg else {}).get("pomodorosCompleted") or 0)
 
     try:
         module_agg = await db.tasks.aggregate(
@@ -256,18 +266,27 @@ async def get_task_stats(taskId: str, current_user: dict = Depends(get_current_u
 
     agg = await db.timerlogs.aggregate(
         [
-            {"$match": {"userId": user_oid, "taskId": task_oid, "status": "completed"}},
+            {"$match": {"userId": user_oid, "taskId": task_oid}},
             {
                 "$addFields": {
-                    "durationSafe": {"$convert": {"input": "$duration", "to": "int", "onError": 0, "onNull": 0}}
+                    "durationSafe": {"$convert": {"input": "$duration", "to": "int", "onError": 0, "onNull": 0}},
+                    "statusSafe": {"$ifNull": ["$status", ""]},
                 }
             },
-            {"$group": {"_id": None, "seconds": {"$sum": "$durationSafe"}, "pomodoros": {"$sum": 1}}},
+            {
+                "$group": {
+                    "_id": None,
+                    "seconds": {"$sum": "$durationSafe"},
+                    "pomodorosCompleted": {
+                        "$sum": {"$cond": [{"$eq": ["$statusSafe", "completed"]}, 1, 0]}
+                    },
+                }
+            },
         ]
     ).to_list(length=1)
 
     total_seconds = int((agg[0] if agg else {}).get("seconds") or 0)
-    pomodoros = int((agg[0] if agg else {}).get("pomodoros") or 0)
+    pomodoros = int((agg[0] if agg else {}).get("pomodorosCompleted") or 0)
     return {
         "taskId": taskId,
         "totalSeconds": total_seconds,
