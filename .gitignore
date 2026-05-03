@@ -56,3 +56,6 @@ backend/.chroma/
 
 # vibe tools
 .trae/
+
+# temp
+temp/
