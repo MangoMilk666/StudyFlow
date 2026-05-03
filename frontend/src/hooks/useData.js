@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
+import { useI18n } from '../i18n'
+
 const LS_USER_KEY = 'sf_user_v1'
 const LS_TOKEN_KEY = 'sf_token_v1'
 const LS_TASKS_KEY = 'sf_tasks_v1'
@@ -56,7 +58,64 @@ function defaultTasks() {
       status: 'done',
       createdAt: '2026-03-16 11:30',
     },
+    {
+      id: 't5',
+      userId: 'demo_user',
+      name: 'Write ancient book preservation lab report',
+      deadline: '2026-03-22',
+      module: 'Research',
+      priority: 'M',
+      status: 'todo',
+      createdAt: '2026-03-20 09:10',
+    },
+    {
+      id: 't6',
+      userId: 'demo_user',
+      name: 'Call family',
+      deadline: '2026-03-20',
+      module: 'Life',
+      priority: 'L',
+      status: 'todo',
+      createdAt: '2026-03-19 21:30',
+    },
+    {
+      id: 't7',
+      userId: 'demo_user',
+      name: 'it5007 project development',
+      deadline: '2026-03-28',
+      module: 'it5007',
+      priority: 'H',
+      status: 'in_progress',
+      createdAt: '2026-03-19 10:05',
+    },
   ]
+}
+
+function localizeDemoTask(task, t) {
+  if (!task || task.userId !== 'demo_user') return task
+
+  if (task.id === 't1') {
+    return { ...task, name: t('demo.tasks.kmpAlgo') }
+  }
+  if (task.id === 't2') {
+    return { ...task, name: t('demo.tasks.it5003ps4') }
+  }
+  if (task.id === 't3') {
+    return { ...task, name: t('demo.tasks.metaInterview'), module: t('demo.modules.jobSeeking') }
+  }
+  if (task.id === 't4') {
+    return { ...task, name: t('demo.tasks.cs5223ps1') }
+  }
+  if (task.id === 't5') {
+    return { ...task, name: t('demo.tasks.ancientReport'), module: t('demo.modules.research') }
+  }
+  if (task.id === 't6') {
+    return { ...task, name: t('demo.tasks.callFamily'), module: t('demo.modules.life') }
+  }
+  if (task.id === 't7') {
+    return { ...task, name: t('demo.tasks.it5007Project') }
+  }
+  return task
 }
 
 export const useAuth = () => {
@@ -83,6 +142,7 @@ export const useAuth = () => {
 }
 
 export const useTasks = (userId) => {
+  const { t, lang } = useI18n()
   const [tasks, setTasks] = useState([])
 
   useEffect(() => {
@@ -90,7 +150,36 @@ export const useTasks = (userId) => {
 
     const stored = localStorage.getItem(LS_TASKS_KEY)
     if (stored) {
-      setTasks(JSON.parse(stored))
+      let parsed = []
+      try {
+        parsed = JSON.parse(stored)
+      } catch {
+        parsed = []
+      }
+
+      if (userId === 'demo_user' && Array.isArray(parsed)) {
+        const seed = defaultTasks()
+        const seedIds = new Set(seed.map((x) => x.id))
+        const existingIds = new Set(parsed.map((x) => x?.id).filter(Boolean))
+
+        const looksLikeDemoList =
+          parsed.length > 0 && parsed.every((x) => x?.userId === 'demo_user') && parsed.some((x) => seedIds.has(x?.id))
+
+        if (looksLikeDemoList) {
+          const newSeedIds = new Set(['t5', 't6', 't7'])
+          const missing = seed.filter((x) => newSeedIds.has(x.id) && !existingIds.has(x.id))
+          if (missing.length) {
+            parsed = [...parsed, ...missing]
+            try {
+              localStorage.setItem(LS_TASKS_KEY, JSON.stringify(parsed))
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+
+      setTasks(Array.isArray(parsed) ? parsed : [])
       return
     }
 
@@ -142,5 +231,11 @@ export const useTasks = (userId) => {
   }
 
   const tasksForUser = useMemo(() => tasks.filter((t) => t.userId === userId), [tasks, userId])
-  return { tasks: tasksForUser, addTask, removeTask, updateTask, cycleStatus }
+
+  const localizedTasksForUser = useMemo(() => {
+    if (userId !== 'demo_user') return tasksForUser
+    return tasksForUser.map((x) => localizeDemoTask(x, t))
+  }, [lang, t, tasksForUser, userId])
+
+  return { tasks: localizedTasksForUser, addTask, removeTask, updateTask, cycleStatus }
 }

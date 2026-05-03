@@ -67,6 +67,22 @@ const translations = {
       backendOk: (status) => `Backend: connected (${status || 'unknown'})`,
       backendErr: 'Backend: not connected (you can start backend with MOCK_MODE=true)',
     },
+    demo: {
+      tasks: {
+        kmpAlgo: 'KMP Algo',
+        it5003ps4: 'it5003 PS4',
+        metaInterview: 'Meta Interview',
+        cs5223ps1: 'cs5223 PS1',
+        ancientReport: 'Write ancient book preservation lab report',
+        callFamily: 'Call family',
+        it5007Project: 'it5007 project development',
+      },
+      modules: {
+        jobSeeking: 'Job Seeking',
+        research: 'Research',
+        life: 'Life',
+      },
+    },
     focus: {
       currentTask: 'Current Task',
       nextTask: 'Next Task',
@@ -268,6 +284,22 @@ const translations = {
       noTasks: '暂无任务',
       backendOk: (status) => `后端：已连接（${status || 'unknown'}）`,
       backendErr: '后端：未连接（可先用 MOCK_MODE=true 启动后端）',
+    },
+    demo: {
+      tasks: {
+        kmpAlgo: 'KMP 算法',
+        it5003ps4: 'it5003 习题 PS4',
+        metaInterview: 'Meta 面试',
+        cs5223ps1: 'cs5223 习题 PS1',
+        ancientReport: '写古籍保护实验报告',
+        callFamily: '给家人打电话',
+        it5007Project: 'it5007 项目开发',
+      },
+      modules: {
+        jobSeeking: '求职',
+        research: '科研',
+        life: '生活',
+      },
     },
     focus: {
       currentTask: '当前任务',
