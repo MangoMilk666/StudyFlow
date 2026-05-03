@@ -40,6 +40,7 @@ jobs:
             if [[ -z "${{ secrets.MONGO_URI }}" ]]; then echo "Missing secret: MONGO_URI" >&2; exit 1; fi
             if [[ -z "${{ secrets.JWT_SECRET }}" ]]; then echo "Missing secret: JWT_SECRET" >&2; exit 1; fi
             if [[ -z "${{ vars.CORS_ORIGINS }}" ]]; then echo "Missing variable: CORS_ORIGINS" >&2; exit 1; fi
+            if [[ -z "${{ vars.OPENAI_BASE_URL }}" ]]; then echo "Missing variable: OPENAI_BASE_URL" >&2; exit 1; fi
 
             umask 077
             cat > .env <<'EOF'
@@ -57,6 +58,7 @@ jobs:
             
             OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
             OPENAI_MODEL=${{ vars.OPENAI_MODEL || 'gpt-4.1-mini' }}
+            OPENAI_BASE_URL=${{ vars.OPENAI_BASE_URL }}
             
             CHROMA_PERSIST_DIR=${{ vars.CHROMA_PERSIST_DIR || '/data/chroma' }}
             

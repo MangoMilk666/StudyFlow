@@ -24,6 +24,7 @@ services:
       - CANVAS_TOKEN=${CANVAS_TOKEN:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_MODEL=${OPENAI_MODEL:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - CHROMA_PERSIST_DIR=/data/chroma
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
