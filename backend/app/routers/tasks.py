@@ -16,7 +16,7 @@
 from datetime import datetime, timezone
 import re
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, Query
 from pymongo import ReturnDocument
 
 from app.deps import get_current_user
@@ -113,11 +113,15 @@ def _serialize_task(doc: dict, module_doc: dict | None = None) -> dict:
         createdAt=serialize_datetime(doc.get("createdAt")),
         updatedAt=serialize_datetime(doc.get("updatedAt")),
         unlockAt=serialize_datetime(doc.get("unlockAt")),
+        archivedAt=serialize_datetime(doc.get("archivedAt")),
     ).model_dump(by_alias=True)
 
 
 @router.get("")
-async def list_tasks(current_user: dict = Depends(get_current_user)):
+async def list_tasks(
+    archived: int | None = Query(default=None),
+    current_user: dict = Depends(get_current_user),
+):
     """获取当前用户任务列表（按 userId 过滤）。
 
     行为与 Express 版保持一致：返回数组，并尽量填充 module 信息。
@@ -128,7 +132,14 @@ async def list_tasks(current_user: dict = Depends(get_current_user)):
     except MongoNotReadyError:
         raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
     user_oid = to_object_id(current_user["userId"])
-    docs = await db.tasks.find({"userId": user_oid}).to_list(length=None)
+
+    base_filter: dict = {"userId": user_oid}
+    if archived == 1:
+        base_filter["archivedAt"] = {"$ne": None}
+    else:
+        base_filter["$or"] = [{"archivedAt": None}, {"archivedAt": {"$exists": False}}]
+
+    docs = await db.tasks.find(base_filter).to_list(length=None)
 
     module_oids = [d.get("module") for d in docs if d.get("module") is not None]
     modules_map = await _load_modules_map(db, user_oid, module_oids)
@@ -278,6 +289,8 @@ async def update_task(
         updates["module"] = to_object_id(updates.get("module")) if updates.get("module") else None
     if "unlockAt" in updates:
         updates["unlockAt"] = parse_datetime(updates.get("unlockAt"))
+    if "archivedAt" in updates:
+        updates["archivedAt"] = parse_datetime(updates.get("archivedAt"))
     if "moduleName" in updates and "module" not in updates:
         user_oid = to_object_id(current_user["userId"])
         name = str(updates.get("moduleName") or "").strip()
@@ -308,6 +321,78 @@ async def update_task(
                 updatedAt=serialize_datetime(module.get("updatedAt")),
             ).model_dump(by_alias=True)
     return _serialize_task(task, mod_doc)
+
+
+@router.patch("/{id}/archive")
+async def archive_task(id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        db = await get_db_checked()
+    except MongoNotReadyError:
+        raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+
+    existing = await db.tasks.find_one({"_id": to_object_id(id)})
+    if not existing:
+        raise ApiError(404, "Task not found")
+    if oid_str(existing.get("userId")) != current_user["userId"]:
+        raise ApiError(403, "Forbidden")
+
+    now = datetime.now(timezone.utc)
+    await db.tasks.update_one(
+        {"_id": to_object_id(id)},
+        {"$set": {"archivedAt": now, "updatedAt": now}},
+    )
+    task = await db.tasks.find_one({"_id": to_object_id(id)})
+    if not task:
+        raise ApiError(404, "Task not found")
+    return _serialize_task(task, None)
+
+
+@router.patch("/{id}/unarchive")
+async def unarchive_task(id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        db = await get_db_checked()
+    except MongoNotReadyError:
+        raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+
+    existing = await db.tasks.find_one({"_id": to_object_id(id)})
+    if not existing:
+        raise ApiError(404, "Task not found")
+    if oid_str(existing.get("userId")) != current_user["userId"]:
+        raise ApiError(403, "Forbidden")
+
+    now = datetime.now(timezone.utc)
+    await db.tasks.update_one(
+        {"_id": to_object_id(id)},
+        {"$set": {"archivedAt": None, "updatedAt": now}},
+    )
+    task = await db.tasks.find_one({"_id": to_object_id(id)})
+    if not task:
+        raise ApiError(404, "Task not found")
+    return _serialize_task(task, None)
+
+
+@router.patch("/{id}/restore")
+async def restore_task(id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        db = await get_db_checked()
+    except MongoNotReadyError:
+        raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+
+    existing = await db.tasks.find_one({"_id": to_object_id(id)})
+    if not existing:
+        raise ApiError(404, "Task not found")
+    if oid_str(existing.get("userId")) != current_user["userId"]:
+        raise ApiError(403, "Forbidden")
+
+    now = datetime.now(timezone.utc)
+    await db.tasks.update_one(
+        {"_id": to_object_id(id)},
+        {"$set": {"status": "To Do", "archivedAt": None, "updatedAt": now}},
+    )
+    task = await db.tasks.find_one({"_id": to_object_id(id)})
+    if not task:
+        raise ApiError(404, "Task not found")
+    return _serialize_task(task, None)
 
 
 @router.delete("/{id}")

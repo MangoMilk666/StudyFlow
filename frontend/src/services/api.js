@@ -76,12 +76,16 @@ export const authAPI = {
 // Task API
 export const taskAPI = {
   getAllTasks: () => apiClient.get('/tasks'),
+  getArchivedTasks: () => apiClient.get('/tasks', { params: { archived: 1 } }),
   createTask: (taskData) => apiClient.post('/tasks', taskData),
   getTaskById: (id) => apiClient.get(`/tasks/${id}`),
   updateTask: (id, updates) => apiClient.put(`/tasks/${id}`, updates),
   deleteTask: (id) => apiClient.delete(`/tasks/${id}`),
   updateTaskStatus: (id, status) =>
     apiClient.patch(`/tasks/${id}/status`, { status }),
+  archiveTask: (id) => apiClient.patch(`/tasks/${id}/archive`),
+  unarchiveTask: (id) => apiClient.patch(`/tasks/${id}/unarchive`),
+  restoreTask: (id) => apiClient.patch(`/tasks/${id}/restore`),
   addSubtask: (id, text) => apiClient.post(`/tasks/${id}/subtask`, { text }),
 };
 

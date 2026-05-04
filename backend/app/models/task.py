@@ -64,6 +64,7 @@ class TaskOut(BaseModel):
     createdAt: str | None = None
     updatedAt: str | None = None
     unlockAt: str | None = None
+    archivedAt: str | None = None
 
 
 class TaskCreateRequest(BaseModel):
@@ -107,6 +108,7 @@ class TaskUpdateRequest(BaseModel):
     timeSpent: int | float | None = None
     subtasks: list[dict[str, Any]] | None = None
     unlockAt: str | None = None
+    archivedAt: str | None = None
 
 
 class TaskStatusUpdateRequest(BaseModel):

@@ -235,7 +235,8 @@ export default function ChatModal({ open, onClose, t }) {
         const parsed = JSON.parse(raw)
         if (Array.isArray(parsed)) setMessages(parsed)
       }
-    } catch (e) {
+    } catch {
+      setMessages([])
     } finally {
       setHydrated(true)
     }
@@ -247,7 +248,9 @@ export default function ChatModal({ open, onClose, t }) {
     try {
       const next = Array.isArray(messages) ? messages.slice(-100) : []
       localStorage.setItem(storageKey, JSON.stringify(next))
-    } catch (e) {}
+    } catch {
+      void 0
+    }
   }, [hydrated, storageKey, messages])
 
   useEffect(() => {
@@ -376,7 +379,8 @@ export default function ChatModal({ open, onClose, t }) {
                 if (storageKey) {
                   try {
                     localStorage.removeItem(storageKey)
-                  } catch (e) {
+                  } catch {
+                    void 0
                   }
                 }
               }}

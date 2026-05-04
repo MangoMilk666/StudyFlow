@@ -86,7 +86,9 @@ export default function AuthPage() {
 
                   try {
                     sessionStorage.setItem('sf_auth_flash', isLogin ? 'login_ok' : 'register_ok')
-                  } catch {}
+                  } catch {
+                    void 0
+                  }
 
                   login(
                     {

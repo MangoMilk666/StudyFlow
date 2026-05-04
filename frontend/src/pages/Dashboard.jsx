@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import TopNav from '../components/TopNav'
+import DoneTaskActionModal from '../components/DoneTaskActionModal'
 import { useApiHealth } from '../hooks/useApiHealth'
 import { useI18n } from '../i18n'
 import { useUnifiedTasks } from '../hooks/useUnifiedTasks'
-import { statsAPI } from '../services/api'
+import { statsAPI, taskAPI } from '../services/api'
 
-function Panel({ title, color, tasks, onTaskClick, isAuthenticated, pomodoroCounts, hoveredTaskId, onHoverPomodoro, onLeavePomodoro }) {
+function Panel({ title, color, tasks, onTaskClick, isAuthenticated, pomodoroCounts, hoveredTaskId, onHoverPomodoro, onLeavePomodoro, clickHint }) {
   const { t: tr } = useI18n()
 
   return (
@@ -40,7 +41,7 @@ function Panel({ title, color, tasks, onTaskClick, isAuthenticated, pomodoroCoun
                 justifyContent: 'space-between',
                 gap: 12,
               }}
-              title={tr('dashboard.clickHint')}
+              title={clickHint || tr('dashboard.clickHint')}
             >
               <span style={{ flex: '1 1 auto', textAlign: 'left' }}>{task.name}</span>
               {(() => {
@@ -88,12 +89,15 @@ function Panel({ title, color, tasks, onTaskClick, isAuthenticated, pomodoroCoun
 }
 
 export default function Dashboard() {
-  const { tasks, cycleStatus, isAuthenticated } = useUnifiedTasks()
+  const { tasks, cycleStatus, isAuthenticated, refresh } = useUnifiedTasks()
   useApiHealth()
   const { t: tr } = useI18n()
   const [authFlash, setAuthFlash] = useState(null)
+  const [notice, setNotice] = useState(null)
   const [pomodoroCounts, setPomodoroCounts] = useState({})
   const [hoveredTaskId, setHoveredTaskId] = useState(null)
+  const [doneActionTask, setDoneActionTask] = useState(null)
+  const [doneActionLoading, setDoneActionLoading] = useState(false)
 
   useEffect(() => {
     try {
@@ -131,12 +135,74 @@ export default function Dashboard() {
     setHoveredTaskId((prev) => (prev === taskId ? null : prev))
   }
 
+  const onDoneTaskClick = async (taskId) => {
+    setNotice(null)
+    if (!isAuthenticated) {
+      setNotice({ type: 'error', text: tr('auth.loginRequired') })
+      return
+    }
+    const t = tasks.find((x) => x.id === taskId)
+    if (!t) return
+    setDoneActionTask(t)
+  }
+
+  const closeDoneModal = () => {
+    if (doneActionLoading) return
+    setDoneActionTask(null)
+  }
+
+  const archiveDoneTask = async () => {
+    if (!doneActionTask) return
+    setDoneActionLoading(true)
+    try {
+      await taskAPI.archiveTask(doneActionTask.id)
+      await refresh()
+      setDoneActionTask(null)
+      setNotice({ type: 'success', text: tr('archive.archived') })
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || tr('archive.failed')
+      setNotice({ type: 'error', text: msg })
+    } finally {
+      setDoneActionLoading(false)
+    }
+  }
+
+  const restoreDoneTask = async () => {
+    if (!doneActionTask) return
+    setDoneActionLoading(true)
+    try {
+      await taskAPI.restoreTask(doneActionTask.id)
+      await refresh()
+      setDoneActionTask(null)
+      setNotice({ type: 'success', text: tr('archive.restored') })
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || tr('archive.failed')
+      setNotice({ type: 'error', text: msg })
+    } finally {
+      setDoneActionLoading(false)
+    }
+  }
+
   return (
     <div className="sf-page">
       <div className="main-frame">
         <TopNav />
 
         <div className="sf-scroll">
+          {notice ? (
+            <div
+              style={{
+                margin: '0 10px 16px 10px',
+                border: `2px solid var(--ink)`,
+                borderRadius: 14,
+                padding: '10px 12px',
+                background: notice.type === 'success' ? 'var(--panel-done)' : 'var(--btn-delete-bg)',
+                fontWeight: 'bold',
+              }}
+            >
+              {notice.text}
+            </div>
+          ) : null}
           <main
             style={{
               display: 'grid',
@@ -182,12 +248,13 @@ export default function Dashboard() {
               title={tr('dashboard.done')}
               color="var(--panel-done)"
               tasks={byStatus.done}
-              onTaskClick={cycleStatus}
+              onTaskClick={onDoneTaskClick}
               isAuthenticated={isAuthenticated}
               pomodoroCounts={pomodoroCounts}
               hoveredTaskId={hoveredTaskId}
               onHoverPomodoro={onHoverPomodoro}
               onLeavePomodoro={onLeavePomodoro}
+              clickHint={tr('archive.modalHint')}
             />
           </main>
 
@@ -197,6 +264,15 @@ export default function Dashboard() {
             </div>
           ) : null}
         </div>
+
+        <DoneTaskActionModal
+          open={!!doneActionTask}
+          taskName={doneActionTask?.name}
+          onArchive={archiveDoneTask}
+          onRestore={restoreDoneTask}
+          onClose={closeDoneModal}
+          loading={doneActionLoading}
+        />
 
         {authFlash ? (
           <div

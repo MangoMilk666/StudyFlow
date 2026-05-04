@@ -2,7 +2,7 @@ import TopNav from '../components/TopNav'
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth'
 import { useI18n } from '../i18n'
-import { authAPI, moduleAPI, userAPI } from '../services/api'
+import { authAPI, moduleAPI, taskAPI, userAPI } from '../services/api'
 import { useNavigate } from 'react-router-dom'
 
 function Card({ title, color, children }) {
@@ -88,6 +88,9 @@ export default function SettingsPage() {
   const [devices, setDevices] = useState([])
 
   const [policyOpen, setPolicyOpen] = useState(false)
+  const [archiveOpen, setArchiveOpen] = useState(false)
+  const [archiveLoading, setArchiveLoading] = useState(false)
+  const [archivedTasks, setArchivedTasks] = useState([])
 
   const [moduleDraft, setModuleDraft] = useState({ name: '', colorCode: '#3f51b5' })
   const [editingModuleId, setEditingModuleId] = useState(null)
@@ -129,6 +132,59 @@ export default function SettingsPage() {
   useEffect(() => {
     loadAll()
   }, [isAuthenticated])
+
+  const loadArchivedTasks = async () => {
+    if (!isAuthenticated) return
+    setArchiveLoading(true)
+    try {
+      const resp = await taskAPI.getArchivedTasks()
+      setArchivedTasks(Array.isArray(resp.data) ? resp.data : [])
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || t('archive.failed')
+      setNotice({ type: 'error', text: msg })
+      setArchivedTasks([])
+    } finally {
+      setArchiveLoading(false)
+    }
+  }
+
+  const openArchivePanel = async () => {
+    setNotice(null)
+    setArchiveOpen(true)
+    await loadArchivedTasks()
+  }
+
+  const unarchiveTask = async (id) => {
+    setNotice(null)
+    setArchiveLoading(true)
+    try {
+      await taskAPI.unarchiveTask(id)
+      setArchivedTasks((prev) => prev.filter((x) => x?._id !== id))
+      setNotice({ type: 'success', text: t('archive.unarchived') })
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || t('archive.failed')
+      setNotice({ type: 'error', text: msg })
+    } finally {
+      setArchiveLoading(false)
+    }
+  }
+
+  const deleteArchivedTask = async (id) => {
+    const ok = window.confirm(t('settings.confirmDelete'))
+    if (!ok) return
+    setNotice(null)
+    setArchiveLoading(true)
+    try {
+      await taskAPI.deleteTask(id)
+      setArchivedTasks((prev) => prev.filter((x) => x?._id !== id))
+      setNotice({ type: 'success', text: t('settings.deleted') })
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || t('archive.failed')
+      setNotice({ type: 'error', text: msg })
+    } finally {
+      setArchiveLoading(false)
+    }
+  }
 
   useEffect(() => {
     const usePersonalKey = !!aiConfig?.usePersonalKey
@@ -574,6 +630,21 @@ export default function SettingsPage() {
                     <div style={{ opacity: 0.85, fontSize: 12, fontWeight: 'bold' }}>{t('settings.aiConfigHint')}</div>
                   </div>
                 </Card>
+
+                <Card title={t('archive.panelTitle')} color="var(--btn-edit-bg)">
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    <div style={{ fontSize: 12, opacity: 0.85, fontWeight: 'bold' }}>{t('archive.modalHint')}</div>
+                    <button
+                      className="btn"
+                      type="button"
+                      style={{ background: 'white' }}
+                      onClick={openArchivePanel}
+                      disabled={loading || archiveLoading}
+                    >
+                      {t('archive.openPanel')}
+                    </button>
+                  </div>
+                </Card>
               </div>
             ) : null}
 
@@ -659,6 +730,63 @@ export default function SettingsPage() {
           <div style={{ opacity: 0.9 }}>{t('settings.policyDataBody')}</div>
           <div style={{ fontWeight: 'bold' }}>{t('settings.policyControlTitle')}</div>
           <div style={{ opacity: 0.9 }}>{t('settings.policyControlBody')}</div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={archiveOpen}
+        title={t('archive.panelTitle')}
+        onClose={() => {
+          if (archiveLoading) return
+          setArchiveOpen(false)
+        }}
+      >
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ fontWeight: 'bold' }}>{`${t('archive.panelTitle')}: ${archivedTasks.length}`}</div>
+            <button className="btn" type="button" style={{ background: 'white' }} onClick={loadArchivedTasks} disabled={archiveLoading}>
+              {t('settings.refresh')}
+            </button>
+          </div>
+
+          <div style={{ borderTop: `2px solid var(--ink)`, opacity: 0.5 }} />
+
+          {archiveLoading ? (
+            <div style={{ opacity: 0.75, fontWeight: 'bold' }}>{t('common.loading')}</div>
+          ) : !archivedTasks.length ? (
+            <div style={{ opacity: 0.75, fontWeight: 'bold' }}>{t('archive.empty')}</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {archivedTasks.map((x) => (
+                <div
+                  key={x._id}
+                  style={{
+                    border: `2px solid var(--ink)`,
+                    borderRadius: 14,
+                    padding: '10px 12px',
+                    background: 'white',
+                    display: 'grid',
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={x.title || ''}>
+                    {x.title || ''}
+                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.85 }}>
+                    {t('archive.archivedAt')}: {formatDateTime(x.archivedAt)}
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button className="btn" type="button" style={{ background: 'var(--btn-add-bg)' }} onClick={() => unarchiveTask(x._id)} disabled={archiveLoading}>
+                      {t('archive.unarchive')}
+                    </button>
+                    <button className="btn" type="button" style={{ background: 'var(--btn-delete-bg)' }} onClick={() => deleteArchivedTask(x._id)} disabled={archiveLoading}>
+                      {t('tasks.delete')}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </Modal>
     </div>
