@@ -39,7 +39,7 @@ class ModuleOut(BaseModel):
     - MongoDB 的主键是 _id，这里用 alias 把它映射为 id 字段（保持返回仍带 _id）。
     - populate_by_name=True：允许既用 _id 也用 id 填充。
     """
-
+    # 允许按别名赋值
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
     id: str = Field(alias="_id")

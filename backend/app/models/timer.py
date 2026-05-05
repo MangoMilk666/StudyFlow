@@ -32,15 +32,21 @@ class TimerStopRequest(BaseModel):
 
 
 class TimerLogOut(BaseModel):
+    '''
+    待存入的timerlog数据
+    '''
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
     id: str
     taskId: str
     userId: str
+    # 秒数
     duration: int
     status: str
     startTime: str | None = None
     endTime: str | None = None
+    # sessionDate：这次番茄钟会话归属的日期/时间戳字段
+    # 当前实现等同于endTime，用来做 排序 和 按时间范围统计过滤
     sessionDate: str | None = None
     createdAt: str | None = None
     updatedAt: str | None = None

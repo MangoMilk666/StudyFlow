@@ -13,16 +13,26 @@ from datetime import datetime, timezone
 
 
 def to_object_id(value: str) -> ObjectId:
+    '''
+    将字符串转为ObjectId, 即mongo _id
+    '''
+    # MongoDB 官方驱动（pymongo）提供的专用数据类型
     return ObjectId(str(value))
 
 
 def oid_str(value) -> str:
+    '''
+    强制将 MongoDB 的 ObjectId 转换为字符串格式
+    '''
     if isinstance(value, ObjectId):
         return str(value)
     return str(value)
 
 
 def serialize_datetime(value):
+    '''
+    返回强制标注为UTC的datetime类实例
+    '''
     if value is None:
         return None
     try:

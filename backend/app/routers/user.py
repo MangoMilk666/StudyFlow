@@ -16,6 +16,9 @@ router = APIRouter()
 
 
 def _serialize_profile(doc: dict) -> dict:
+    '''
+    将用户mongodb的_id映射为userId
+    '''
     return ProfileOut(
         userId=oid_str(doc.get("_id")),
         username=str(doc.get("username") or ""),
@@ -24,7 +27,7 @@ def _serialize_profile(doc: dict) -> dict:
         dataSharingAccepted=doc.get("dataSharingAccepted"),
         dataSharingAcceptedAt=serialize_datetime(doc.get("dataSharingAcceptedAt")),
         dataSharingVersion=doc.get("dataSharingVersion"),
-    ).model_dump()
+    ).model_dump() # 转为字典表示
 
 
 def _serialize_ai_config(doc: dict | None) -> dict:

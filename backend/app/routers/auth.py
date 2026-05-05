@@ -31,17 +31,22 @@ async def _create_session(
     request: Request,
     now: datetime,
 ) -> str:
+    '''
+    依照多层级匹配，获取用户session记录的id
+    '''
     user_agent = request.headers.get("user-agent")
     ip = request.client.host if request.client else None
     cleaned_device = (device_name or "").strip() or None
     cleaned_pid = (persistent_id or "").strip() or None
 
     # Priority 1: stable UUID — survives browser updates and UA changes
+    # 如果客户端传来了 persistentId（前端生成的 UUID，存放在 localStorage ）
+    # 最可靠的“设备身份证”
     if cleaned_pid:
         existing = await db.sessions.find_one(
             {"userId": user_oid, "revokedAt": None, "persistentId": cleaned_pid}
         )
-        # 同一台设备上的浏览器，uuid存在 -> 更新lastSeenAt
+        # 同一台设备上，uuid存在 -> 更新lastSeenAt等字段
         if existing:
             await db.sessions.update_one(
                 {"_id": existing.get("_id")},
@@ -50,11 +55,12 @@ async def _create_session(
             return oid_str(existing.get("_id"))
 
     # Priority 2 (legacy — no UUID): real platform name match, ignore UA version drift
+    # 如果客户端没传 UUID（可能是老版本客户端），就看是否传了设备名称（比如“Henry's MacBook”）
     if cleaned_device and cleaned_device != "browser":
         existing = await db.sessions.find_one(
             {"userId": user_oid, "revokedAt": None, "deviceName": cleaned_device, "persistentId": None}
         )
-        # 没有uuid，但是老的平台名称匹配的到 -> 更新lastSeenAt, ip, user_agent字段
+        # 没有uuid，但是设备名称匹配的到 -> 更新lastSeenAt, ip, user_agent字段
         if existing:
             await db.sessions.update_one(
                 {"_id": existing.get("_id")},
@@ -63,6 +69,7 @@ async def _create_session(
             return oid_str(existing.get("_id"))
 
     # Priority 3 (legacy — no UUID, generic deviceName): exact UA match
+    # 既没有 UUID，也没有明确的设备名称，校验浏览器指纹（User Agent）
     if user_agent:
         existing = await db.sessions.find_one(
             {"userId": user_oid, "revokedAt": None, "deviceName": cleaned_device,
@@ -75,6 +82,7 @@ async def _create_session(
             )
             return oid_str(existing.get("_id"))
 
+    # 如果都匹配不到（新用户），插入新的session数据
     doc = {
         "userId": user_oid,
         "persistentId": cleaned_pid,
@@ -127,8 +135,9 @@ async def register(request: Request, payload: RegisterRequest = Body(default_fac
             "updatedAt": now,
         }
     )
-
+    # 新插入的用户id
     user_id = oid_str(result.inserted_id)
+    # 新插入的session id
     session_id = await _create_session(
         db,
         user_oid=to_object_id(user_id),

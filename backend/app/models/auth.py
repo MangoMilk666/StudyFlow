@@ -5,6 +5,8 @@ from __future__ import annotations
 这些模型用于：
 - FastAPI 自动解析请求 JSON -> Python 对象
 - FastAPI/路由层把 Python 对象 -> JSON 返回给前端
+
+框架：FastAPI把配置项封装在 model_config 里，统一由 ConfigDict 管理。这样做的好处是：配置与代码逻辑彻底分离
 """
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,9 +18,10 @@ class RegisterRequest(BaseModel):
     与旧 Express 保持一致：
     - username/email/password 必填（路由层会做校验并给出兼容错误信息）
     """
-
+    # model_config 通过 ConfigDict 类来控制模型的各种行为
+    # 忽略定义以外的字段
     model_config = ConfigDict(extra="ignore")
-
+    # 这个字段允许前端不传（因为默认为 None）
     username: str | None = None
     email: str | None = None
     password: str | None = None

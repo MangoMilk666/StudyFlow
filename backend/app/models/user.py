@@ -10,8 +10,11 @@ class ProfileOut(BaseModel):
     username: str
     email: str
     avatarUrl: str | None = None
+    # 是否签署
     dataSharingAccepted: bool | None = None
+    # 签署时间
     dataSharingAcceptedAt: str | None = None
+    # 协议版本，为未来升级预留的审计字段
     dataSharingVersion: str | None = None
 
 

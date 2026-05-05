@@ -49,6 +49,7 @@ def create_access_token(*, user_id: str, email: str, session_id: str | None = No
     settings = get_settings()
     # 用 UTC 写入 iat/exp：避免服务器时区变化导致 token 提前/延后过期
     now = datetime.now(timezone.utc)
+    # token过期时间
     exp = now + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
 
     payload = {
@@ -60,6 +61,7 @@ def create_access_token(*, user_id: str, email: str, session_id: str | None = No
     }
     if session_id:
         payload["sid"] = session_id
+    # 对载荷信息进行签名
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 

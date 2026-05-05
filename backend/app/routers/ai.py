@@ -9,7 +9,7 @@ import re
 本文件提供一个最小但可扩展的 AI 对话入口：
 - 路由：POST /api/ai/chat
 - 能力：LangGraph ReAct Agent（LLM + 工具调用）
-- 工具：任务统计 /（预留）Canvas 同步 /（可选）RAG 检索上下文
+- 工具：任务统计 / Canvas 同步 /（可选）RAG 检索上下文
 
 设计取舍：
 - FastAPI 通过 Depends(get_current_user) 注入"当前登录用户"，用于做权限隔离。
@@ -44,7 +44,8 @@ from pymongo import ReturnDocument
 from app.models.module import ModuleOut
 from app.routers.tasks import _serialize_task
 
-
+# 创建一个独立的路由容器，暂存属于该模块的所有接口定义。
+# 通过注解，让访问/api/ai/xx时来该板块匹配
 router = APIRouter()
 
 def _map_llm_error(e: Exception) -> ApiError | None:
@@ -58,6 +59,7 @@ def _map_llm_error(e: Exception) -> ApiError | None:
 
     # 异常对象的结构在不同 SDK/版本里可能不同，因此同时用 str(e) + status_code/status 做兼容解析
     msg = str(e)
+    # 尝试兼容获取状态码
     status = getattr(e, "status_code", None) or getattr(e, "status", None)
     try:
         status = int(status) if status is not None else None
@@ -67,16 +69,16 @@ def _map_llm_error(e: Exception) -> ApiError | None:
     lowered = msg.lower()
     # 这里的 401 是"上游模型服务"的 401，不是我们的 JWT 401（否则会触发前端登出）
     if status == 401 or "invalid_api_key" in lowered or "incorrect api key" in lowered:
-        return ApiError(503, "OpenAI API Key 无效：请检查 OPENAI_API_KEY（或 OPENAI_BASE_URL 是否匹配）")
+        return ApiError(503, "LLM 服务商验证失败：请检查 OPENAI_API_KEY（或 OPENAI_BASE_URL 是否匹配）")
     if status == 429 or "rate limit" in lowered or "quota" in lowered:
-        return ApiError(503, "OpenAI 触发限流或额度不足：请稍后重试或检查额度")
+        return ApiError(503, "LLM 服务商触发限流或额度不足：请稍后重试或检查额度")
     if status is not None and status >= 500:
         return ApiError(502, f"上游模型服务异常：HTTP {status}")
     return None
 
 
 def _history_to_messages(history: list[dict[str, Any]] | None):
-    """把前端传入的 history（role/content 列表）转换为 LangChain messages。
+    """把前端传入的 history（role/content 列表）封装为 LangChain messages。
 
     - role=assistant|ai -> AIMessage
     - role=user|human -> HumanMessage
@@ -93,21 +95,30 @@ def _history_to_messages(history: list[dict[str, Any]] | None):
             role = (h.get("role") or "").lower()
             content = str(h.get("content") or "")
             if role in {"assistant", "ai"}:
-                # ai回复
+                # ai回复内容
                 out.append(AIMessage(content=content))
             elif role in {"user", "human"}:
-                # 用户回复
+                # 用户输入内容
                 out.append(HumanMessage(content=content))
         return out
     except Exception:
         return []
 
 def _coerce_client_datetime(value: str | None, *, fallback: datetime) -> datetime:
+    '''
+    将前端传来的各种时间字符串强制转化为标准化的 UTC datetime 对象”
+    :param value:
+    :param fallback: 保底值
+    :return: 标准化的 UTC datetime 对象
+    '''
     dt = parse_datetime(value)
     if dt is None:
         return fallback
+    # 如果前端没传时区，假设它在服务器当前所处的时区（local_tz）
     if dt.tzinfo is None:
         local_tz = datetime.now().astimezone().tzinfo
+        # 如果服务器时区也无法识别（某些 Docker 容器中可能发生）
+        # 防御性编程，一律视为UTC时间
         if local_tz is None:
             return dt.replace(tzinfo=timezone.utc)
         return dt.replace(tzinfo=local_tz).astimezone(timezone.utc)
@@ -117,7 +128,7 @@ def _coerce_client_datetime(value: str | None, *, fallback: datetime) -> datetim
 async def _get_task_stats(user_id: str) -> dict[str, Any]:
     """给 Agent 工具使用：读取当前用户的任务统计信息。
 
-    返回字段说明：
+    返回字段说明当前用户的：
     - total：任务总数
     - done：已完成任务数（status == "Done"）
     - byModuleDetail: 按任务归属的module和任务状态统计
@@ -128,16 +139,23 @@ async def _get_task_stats(user_id: str) -> dict[str, Any]:
         db = await get_db_checked()
     except MongoNotReadyError:
         raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+
+    # user 数据库记录的_id
     user_oid = to_object_id(user_id)
     total = await db.tasks.count_documents({"userId": user_oid})
     done = await db.tasks.count_documents({"userId": user_oid, "status": "Done"})
+
     # 查询不同状态的任务数量
+    # to_list: 决定了 Motor 从 MongoDB 游标（Cursor）中抓取文档的最大条数
+    # length = None: 一次性全部读取到内存，不分页
     by_status = await db.tasks.aggregate(
         [
             {"$match": {"userId": user_oid}},
+            # 分组依据: status字段
             {"$group": {"_id": "$status", "count": {"$sum": 1}}},
         ]
     ).to_list(length=None)
+
     # 查询已经花费的总时长
     total_time = await db.tasks.aggregate(
         [
@@ -145,12 +163,14 @@ async def _get_task_stats(user_id: str) -> dict[str, Any]:
             {"$group": {"_id": None, "minutes": {"$sum": "$timeSpent"}}},
         ]
     ).to_list(length=1)
+
     # 查询归属于不同module的不同状态的任务数量
-    # 一般用户一次最多允许查询20个module，后续可更改
+    # 限定一般用户一次最多允许查询20个module，后续可更改
     by_Module_and_Status = await db.tasks.aggregate([
         {"$match": {"userId": user_oid}},
-        {   # 复合id分组
+        {
             "$group": {
+                # 复合字段(module, status)进行聚合分组
                 "_id": {
                     "module": "$moduleName",
                     "status": "$status"
@@ -160,6 +180,7 @@ async def _get_task_stats(user_id: str) -> dict[str, Any]:
         },
         {
             "$project": {
+                # 投影: 隐藏之前分组得到的_id复合对象，取出字段重命名
                 "_id": 0,
                 # 取别名，将_id.module, _id.status分别映射为module, status
                 "module": {"$ifNull": ["$_id.module", "Uncategorized"]},
@@ -204,7 +225,11 @@ async def _create_new_task(
 ) -> dict[str, Any]:
     """
     给 Agent 工具使用：为当前用户新建任务记录。
+    :param created_at: 指定的创建时间
+    :param updated_at: 指定的更新时间
+    :return:
     """
+
     title = (title or "").strip()
     if not title:
         raise ApiError(400, "title required")
@@ -212,17 +237,21 @@ async def _create_new_task(
         db = await get_db_checked()
     except MongoNotReadyError:
         raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+
     now = datetime.now(timezone.utc)
+    # 兼容强制指定创建/更新时间
     created_at = created_at or now
     updated_at = updated_at or created_at
 
     user_oid = to_object_id(user_id)
+    # 传参：模块信息，可能是id或模块名
     module_raw = (module or "").strip()
     module_oid = None
+    # 真正的模块名称
     module_name = ""
 
     if module_raw:
-        # 按照传参名称检索module
+        # 把module_raw视为模块id进行匹配
         if re.fullmatch(r"[0-9a-fA-F]{24}", module_raw):
             candidate_oid = to_object_id(module_raw)
             module_doc = await db.modules.find_one({"_id": candidate_oid, "userId": user_oid})
@@ -230,12 +259,14 @@ async def _create_new_task(
                 raise ApiError(400, "module not found")
             module_oid = candidate_oid
             module_name = str(module_doc.get("name") or "")
-        # 检索不到，自动创建一个module记录
+
+        # 匹配不到，则把module_raw视为“模块名称”。使用 $regex 进行不区分大小写的全字匹配
         else:
             cleaned = module_raw
             module_doc = await db.modules.find_one_and_update(
                 {"userId": user_oid, "name": {"$regex": f"^{re.escape(cleaned)}$", "$options": "i"}},
                 {
+                    # 规定这些字段只有在创建新文档（Insert）时才被写入
                     "$setOnInsert": {
                         "userId": user_oid,
                         "name": cleaned,
@@ -245,13 +276,17 @@ async def _create_new_task(
                         "updatedAt": updated_at,
                     }
                 },
+                # update + insert，避免了先查询，再插入的繁琐逻辑，保证原子性
+                # 如果db里没有找到，就会拿这个条件和定义的 $setOnInsert 数据，自动创建一个新记录。
                 upsert=True,
+                # 强制要求db完成更新（或 upsert）后，返回最新的、修改后的文档数据
                 return_document=ReturnDocument.AFTER,
             )
             module_oid = module_doc.get("_id") if module_doc else None
             module_name = str((module_doc or {}).get("name") or cleaned)
 
     normalized_priority = (priority or "").strip().lower()
+    # 未指定默认为medium
     priority_value = "Medium"
     if normalized_priority in {"low", "l"}:
         priority_value = "Low"
@@ -260,6 +295,7 @@ async def _create_new_task(
     elif normalized_priority in {"high", "h"}:
         priority_value = "High"
 
+    # 封装为doc对象
     doc: dict = {
         "userId": user_oid,
         "title": title,
@@ -276,7 +312,9 @@ async def _create_new_task(
         "updatedAt": updated_at,
         "unlockAt": None,
     }
+    # 强制字段+所有值（结构）不为空的字段
     doc = {k: v for k, v in doc.items() if v is not None or k in {"module", "deadline", "unlockAt"}}
+    # 插入数据
     result = await db.tasks.insert_one(doc)
     created = await db.tasks.find_one({"_id": result.inserted_id})
     created = created or {**doc, "_id": result.inserted_id}
@@ -284,6 +322,7 @@ async def _create_new_task(
     mod_doc = None
     if created.get("module") is not None:
         module_doc = await db.modules.find_one({"_id": created.get("module")})
+        # model_dump() 过程完成最后一步 JSON 序列化
         if module_doc:
             mod_doc = ModuleOut(
                 _id=oid_str(module_doc.get("_id")),
@@ -305,8 +344,8 @@ async def _sync_canvas_assignments(
 
     参数：
     - course_filter：课程名称/代码/ID 关键词列表，None 表示全部课程。
-                     匹配规则：关键词是课程名或 course_code 的子串（大小写不敏感），或等于课程 ID。
-    - import_to_tasks：True 时同时把作业幂等写入 tasks 集合。
+        匹配规则：关键词是课程名或 course_code 的子串（大小写不敏感），或等于课程 ID。
+    - import_to_tasks：为 True 时同时把作业幂等写入 tasks 集合。
 
     返回 dict：
     {
@@ -323,17 +362,20 @@ async def _sync_canvas_assignments(
     失败时返回 {"ok": False, "error": "..."}。
     """
     try:
+        # 设定接口 base-url
         async with httpx.AsyncClient(
             base_url=canvas_base_url(),
             headers=_get_auth_headers(),
             timeout=10.0,
         ) as client:
+            # 所有课程数据，包括name，course_code，id字段
             all_courses = await list_courses(client)
 
             # 按关键词过滤课程（名称/课程代码子串匹配，或课程 ID 精确匹配）
             if course_filter:
                 filters = [str(f).strip().lower() for f in course_filter if f]
                 selected = [
+                    # 多可能性匹配
                     c for c in all_courses
                     if any(
                         f in str(c.get("name") or "").lower()
@@ -342,6 +384,7 @@ async def _sync_canvas_assignments(
                         for f in filters
                     )
                 ]
+                # 无课程匹配到
                 if not selected:
                     available = [str(c.get("name") or "") for c in all_courses]
                     return {
@@ -349,6 +392,7 @@ async def _sync_canvas_assignments(
                         "error": f"No courses matched {course_filter}. Available courses: {available}",
                     }
             else:
+                # 过滤条件为None
                 selected = all_courses
 
             # 拉取每门课程的作业列表（保留 raw 数据供后续入库使用）
@@ -396,19 +440,25 @@ async def _sync_canvas_assignments(
             title = str(a.get("name") or "").strip()
             if not title:
                 continue
+            # 把原due_at字段解析为deadline
             due_at = a.get("due_at")
             deadline_str: str | None = None
             if due_at:
                 try:
+                    # Z后缀形式转为+00:00形式
                     dt = datetime.fromisoformat(str(due_at).replace("Z", "+00:00"))
+                    # 拆解信息拼接为yyyy-MM-dd字符串
                     deadline_str = dt.strftime("%Y-%m-%d")
                 except Exception:
+                    # due_at格式不对，干脆只取ISO格式的前10个字符
                     deadline_str = str(due_at)[:10] if len(str(due_at)) >= 10 else None
+
             assignments_out.append({
                 "assignmentId": str(a.get("id") or ""),
                 "name": title,
                 "deadline": deadline_str,
             })
+        # 嵌套
         courses_out.append({
             "courseId": str(course.get("id") or ""),
             "courseName": str(course.get("name") or ""),
@@ -418,6 +468,7 @@ async def _sync_canvas_assignments(
 
     result: dict = {"ok": True, "courses": courses_out}
 
+    # 只查询不导入任务数据
     if not import_to_tasks:
         return result
 
@@ -425,6 +476,7 @@ async def _sync_canvas_assignments(
     try:
         db = await get_db_checked()
     except MongoNotReadyError:
+        # 提示导入失败原因
         result["imported"] = {"error": "MongoDB connection failed"}
         return result
 
@@ -442,9 +494,10 @@ async def _sync_canvas_assignments(
             title = str(a.get("name") or "").strip()
             if not assignment_id or not title:
                 continue
-
+            # 保存清理过格式的description文本
             description = html_to_text(a.get("description"))
             deadline = parse_datetime(a.get("due_at"))
+            # 作业开启时间
             unlock_at = parse_datetime(a.get("unlock_at"))
             now = datetime.now(timezone.utc)
 
@@ -461,13 +514,14 @@ async def _sync_canvas_assignments(
             }
             if unlock_at is not None:
                 update_doc["unlockAt"] = unlock_at
-
+            # 去重：检查同一个作业任务是否已经存在
             existing = await db.tasks.find_one({
                 "userId": user_oid,
                 "source.type": "canvas",
                 "source.courseId": course_id,
                 "source.assignmentId": assignment_id,
             })
+            # 已经存在的任务不重复添加
             if existing:
                 await db.tasks.update_one({"_id": existing.get("_id")}, {"$set": update_doc})
                 updated += 1
@@ -489,6 +543,7 @@ async def ai_health(current_user: dict = Depends(get_current_user)):
     user_id = current_user["userId"]
 
     llm_configured = bool(settings.OPENAI_API_KEY or getattr(settings, "OPENAI_BASE_URL", None))
+    # 返回体现ai功能健康状态的字典
     out: dict[str, Any] = {
         "llmConfigured": llm_configured,
         "openaiBaseUrl": getattr(settings, "OPENAI_BASE_URL", None),

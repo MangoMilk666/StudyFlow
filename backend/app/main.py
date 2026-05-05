@@ -63,7 +63,7 @@ def create_app() -> FastAPI:
     logging.getLogger("passlib.handlers.bcrypt").setLevel(logging.ERROR)
 
     app = FastAPI(lifespan=lifespan)
-
+    # 注册全局异常处理器，用api_error_handler函数处理统一异常类ApiError
     app.add_exception_handler(ApiError, api_error_handler)
     # allow CORS
     origins = [o.strip() for o in (settings.CORS_ORIGINS or "").split(",") if o.strip()]

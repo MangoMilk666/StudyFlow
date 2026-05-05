@@ -23,11 +23,14 @@ class CanvasNotConfiguredError(Exception):
 
 
 def _normalize_base_url(value: str | None) -> str:
+    '''
+    去空格，获取正确的URL
+    '''
     return str(value or "").strip().rstrip("/")
 
 
 def _get_auth_headers() -> dict[str, str]:
-    """读取 Canvas 配置并生成 Authorization header。
+    """读取 Canvas 配置并生成 Authorization header（带token的请求头）。
 
     若缺少 CANVAS_BASE_URL / CANVAS_TOKEN，会抛 CanvasNotConfiguredError，
     上层 router 会转成 {"error": "..."}。
@@ -64,20 +67,22 @@ async def list_courses(client: httpx.AsyncClient) -> list[dict]:
 
 async def list_assignments(client: httpx.AsyncClient, course_id: str | int) -> list[dict]:
     """调用 Canvas API 获取某门课的作业列表。"""
-
+    # 防止 course_id 中包含特殊字符（如 / 或 ?）导致 URL 解析错误
     cid = quote(str(course_id), safe="")
     resp = await client.get(f"/api/v1/courses/{cid}/assignments", params={"per_page": 100})
     resp.raise_for_status()
     return resp.json() or []
 
-
+# 匹配所有其他的 HTML 标签，方便清理
 _tag_re = re.compile(r"<[^>]+>")
+# 匹配script内部所有内容，方便清理js脚本
 _script_re = re.compile(r"<script[\s\S]*?</script>", re.IGNORECASE)
+# 匹配style内部所有内容，方便清理样式
 _style_re = re.compile(r"<style[\s\S]*?</style>", re.IGNORECASE)
 
 
 def html_to_text(html: str | None) -> str:
-    """把 Canvas 的 HTML description 转为纯文本（用于落库和检索）。"""
+    """把 Canvas 的 原 HTML格式的 description 转为纯文本（用于落库和检索）。"""
 
     if not html:
         return ""
@@ -91,5 +96,6 @@ def html_to_text(html: str | None) -> str:
         .replace("&lt;", "<")
         .replace("&gt;", ">")
     )
+    # 把匹配到的所有“一串空白”，统一替换为一个单一的普通空格；去除左右空格
     s = re.sub(r"\s+", " ", s).strip()
     return s
