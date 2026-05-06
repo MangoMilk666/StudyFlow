@@ -29,8 +29,9 @@ apiClient.interceptors.request.use(
     const url = String(config.url || '')
     const isAuth = url.startsWith('/auth/')
     const isHealth = url === '/health'
+    const isVersion = url === '/version'
 
-    if (!token && !isAuth && !isHealth) {
+    if (!token && !isAuth && !isHealth && !isVersion) {
       redirectToAuthIfNeeded()
       return Promise.reject(new Error('AUTH_REQUIRED'))
     }
@@ -108,6 +109,10 @@ export const timerAPI = {
 export const statsAPI = {
   getSummary: (range) => apiClient.get(`/stats/summary?range=${encodeURIComponent(range || 'week')}`),
   getTaskStats: (taskId) => apiClient.get(`/stats/task/${encodeURIComponent(taskId)}`),
+}
+
+export const metaAPI = {
+  getVersion: () => apiClient.get('/version'),
 }
 
 export const aiAPI = {

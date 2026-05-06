@@ -25,6 +25,7 @@ from app.config import get_settings
 from app.errors import ApiError, api_error_handler
 from app.routers import ai, auth, canvas, modules, stats, tasks, timer, user
 from app.services.db import close_mongo, init_mongo, ping_mongo
+from app.utils.version import get_app_version
 
 
 @asynccontextmanager
@@ -84,6 +85,10 @@ def create_app() -> FastAPI:
 
         status = "mock-backend" if settings.MOCK_MODE else "backend-running"
         return {"status": status, "timestamp": datetime.now(timezone.utc).isoformat()}
+
+    @app.get("/api/version")
+    async def version():
+        return {"version": get_app_version()}
 
     if settings.MOCK_MODE:
         from app.routers import mock

@@ -4,6 +4,7 @@ import { useAuth } from '../auth'
 import { useI18n } from '../i18n'
 import { authAPI, moduleAPI, taskAPI, userAPI } from '../services/api'
 import { useNavigate } from 'react-router-dom'
+import { useAppVersion } from '../hooks/useAppVersion'
 
 function Card({ title, color, children }) {
   return (
@@ -79,6 +80,12 @@ export default function SettingsPage() {
   const { toggleLanguage, t } = useI18n()
   const { isAuthenticated, updateUser, user, logout } = useAuth()
   const navigate = useNavigate()
+  const version = useAppVersion()
+  const versionLabel = useMemo(() => {
+    const v = String(version || '').trim()
+    if (!v) return ''
+    return v.toLowerCase().startsWith('v') ? v : `v${v}`
+  }, [version])
 
   const [loading, setLoading] = useState(false)
   const [notice, setNotice] = useState(null)
@@ -444,6 +451,9 @@ export default function SettingsPage() {
 
         <div className="sf-scroll">
           <main style={{ display: 'grid', gap: 18, paddingBottom: 18 }}>
+            {isAuthenticated && versionLabel ? (
+              <div style={{ justifySelf: 'end', fontSize: 12, fontWeight: 'bold', opacity: 0.65 }}>{versionLabel}</div>
+            ) : null}
             {!isAuthenticated ? (
               <div
                 style={{
