@@ -99,6 +99,8 @@ export default function SettingsPage() {
 
   const [consentDraft, setConsentDraft] = useState(false)
 
+  const [focusTimerDraft, setFocusTimerDraft] = useState({ mode: 'classic', customMinutes: 25 })
+
   const initials = useMemo(() => {
     const name = String(profile?.username || user?.username || '').trim()
     const first = name ? name[0] : 'U'
@@ -195,6 +197,46 @@ export default function SettingsPage() {
   useEffect(() => {
     setConsentDraft(!!profile?.dataSharingAccepted)
   }, [profile?.dataSharingAccepted])
+
+  useEffect(() => {
+    const modeRaw = String(profile?.focusTimerMode || 'classic').trim().toLowerCase()
+    const mode = modeRaw === 'custom' ? 'custom' : 'classic'
+    const cm = Number(profile?.focusCustomMinutes)
+    const customMinutes = Number.isFinite(cm) && cm > 0 ? Math.min(240, Math.max(1, Math.floor(cm))) : 25
+    setFocusTimerDraft({ mode, customMinutes })
+  }, [profile?.focusCustomMinutes, profile?.focusTimerMode])
+
+  const saveFocusTimer = async () => {
+    if (!isAuthenticated) {
+      window.alert(t('auth.loginRequired'))
+      return
+    }
+    setNotice(null)
+    try {
+      setLoading(true)
+      const mode = focusTimerDraft.mode === 'custom' ? 'custom' : 'classic'
+      const customMinutes = Number(focusTimerDraft.customMinutes)
+      const payload =
+        mode === 'custom'
+          ? { mode, customMinutes: Number.isFinite(customMinutes) ? Math.floor(customMinutes) : 25 }
+          : { mode }
+      const resp = await userAPI.updateFocusTimer(payload)
+      setProfile(resp.data || null)
+      setNotice({ type: 'success', text: t('settings.saved') })
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || 'Save failed'
+      const raw = String(msg || '')
+      const mapped =
+        raw === 'invalid mode'
+          ? t('settings.focusTimerInvalidMode')
+          : raw === 'invalid customMinutes' || raw.includes('customMinutes must be between 1 and 240')
+            ? t('settings.focusTimerInvalidMinutes')
+            : raw
+      setNotice({ type: 'error', text: mapped })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const changeEmail = async () => {
     if (!isAuthenticated) {
@@ -628,6 +670,54 @@ export default function SettingsPage() {
                       </button>
                     </div>
                     <div style={{ opacity: 0.85, fontSize: 12, fontWeight: 'bold' }}>{t('settings.aiConfigHint')}</div>
+                  </div>
+                </Card>
+
+                <Card title={t('settings.focusTimerTitle')} color="var(--panel-progress)">
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    <div style={{ fontSize: 12, opacity: 0.85, fontWeight: 'bold' }}>{t('settings.focusTimerHint')}</div>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 'bold' }}>
+                        <input
+                          type="radio"
+                          name="sf-focus-timer-mode"
+                          checked={focusTimerDraft.mode === 'classic'}
+                          onChange={() => setFocusTimerDraft((s) => ({ ...s, mode: 'classic' }))}
+                          disabled={loading}
+                        />
+                        {t('settings.focusTimerClassic')}
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 'bold' }}>
+                        <input
+                          type="radio"
+                          name="sf-focus-timer-mode"
+                          checked={focusTimerDraft.mode === 'custom'}
+                          onChange={() => setFocusTimerDraft((s) => ({ ...s, mode: 'custom' }))}
+                          disabled={loading}
+                        />
+                        {t('settings.focusTimerCustom')}
+                      </label>
+                    </div>
+
+                    {focusTimerDraft.mode === 'custom' ? (
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontWeight: 'bold' }}>{t('settings.focusTimerMinutesLabel')}</div>
+                        <input
+                          type="number"
+                          min={1}
+                          max={240}
+                          step={1}
+                          value={String(focusTimerDraft.customMinutes ?? '')}
+                          onChange={(e) => setFocusTimerDraft((s) => ({ ...s, customMinutes: e.target.value }))}
+                          style={{ padding: '10px 12px', borderRadius: 12, border: `2px solid var(--ink)`, fontWeight: 'bold' }}
+                          disabled={loading}
+                        />
+                      </label>
+                    ) : null}
+
+                    <button className="btn" type="button" style={{ background: 'var(--btn-add-bg)' }} onClick={saveFocusTimer} disabled={loading}>
+                      {t('common.save')}
+                    </button>
                   </div>
                 </Card>
 

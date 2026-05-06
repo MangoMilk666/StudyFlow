@@ -23,6 +23,8 @@ from app.utils.mongo import oid_str, serialize_datetime, to_object_id
 router = APIRouter()
 
 POMODORO_SECONDS = 25 * 60
+# 安全截断上限，防止客户端传入极大秒数导致异常数据，240min上限和前端对齐
+MAX_TIMER_SECONDS = 240 * 60
 
 
 @router.post("/start")
@@ -69,10 +71,26 @@ async def stop_timer(
     duration = int(payload.duration)
     if duration < 0:
         raise ApiError(400, "duration must be >= 0")
-    if duration > POMODORO_SECONDS:
-        duration = POMODORO_SECONDS
+    if duration > MAX_TIMER_SECONDS:
+        duration = MAX_TIMER_SECONDS
 
-    status = "completed" if duration >= POMODORO_SECONDS else "interrupted"
+    target_seconds = payload.targetSeconds
+    if target_seconds is None:
+        target_seconds = POMODORO_SECONDS
+    try:
+        target_seconds = int(target_seconds)
+    except Exception:
+        target_seconds = POMODORO_SECONDS
+    if target_seconds <= 0:
+        target_seconds = POMODORO_SECONDS
+    if target_seconds > MAX_TIMER_SECONDS:
+        target_seconds = MAX_TIMER_SECONDS
+
+    provided_status = str(payload.status or "").strip().lower() or None
+    if provided_status in {"completed", "interrupted"}:
+        status = provided_status
+    else:
+        status = "completed" if duration >= target_seconds else "interrupted"
     end_time = datetime.now(timezone.utc)
     start_time = end_time - timedelta(seconds=duration)
     now = end_time

@@ -17,6 +17,9 @@ class ProfileOut(BaseModel):
     # 协议版本，为未来升级预留的审计字段
     dataSharingVersion: str | None = None
 
+    focusTimerMode: str | None = None
+    focusCustomMinutes: int | None = None
+
 
 class AIConfigOut(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -46,6 +49,13 @@ class ConsentUpdateRequest(BaseModel):
     accepted: bool
 
 
+class FocusTimerConfigUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    mode: str
+    customMinutes: int | None = None
+
+
 class DeviceOut(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -57,4 +67,3 @@ class DeviceOut(BaseModel):
     lastSeenAt: str | None = None
     revokedAt: str | None = None
     current: bool = False
-

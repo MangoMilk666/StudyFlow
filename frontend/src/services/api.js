@@ -100,7 +100,7 @@ export const moduleAPI = {
 // Timer API
 export const timerAPI = {
   startTimer: (taskId) => apiClient.post('/timer/start', { taskId }),
-  stopTimer: (taskId, duration, status) => apiClient.post('/timer/stop', { taskId, duration, status }),
+  stopTimer: (taskId, duration, status, targetSeconds) => apiClient.post('/timer/stop', { taskId, duration, status, targetSeconds }),
   getTimerLogs: (taskId) => apiClient.get(`/timer/logs/${taskId}`),
   getWeeklyStats: (userId) => apiClient.get(`/timer/weekly-stats/${userId}`),
 };
@@ -128,6 +128,7 @@ export const userAPI = {
   updateAIConfig: (payload) => apiClient.put('/user/ai-config', payload),
   deleteAIConfig: () => apiClient.delete('/user/ai-config'),
   updateConsent: (accepted) => apiClient.put('/user/consent', { accepted: !!accepted }),
+  updateFocusTimer: (payload) => apiClient.put('/user/focus-timer', payload),
   listDevices: () => apiClient.get('/user/devices'),
   revokeDevice: (id) => apiClient.delete(`/user/devices/${id}`),
 }

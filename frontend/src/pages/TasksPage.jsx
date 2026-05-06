@@ -38,14 +38,32 @@ function statusLabel(value, t) {
   return String(value || '')
 }
 
-function formatDate(value) {
+function parseDeadlineToDate(value) {
+  if (!value) return null
+  const raw = String(value)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const d = new Date(`${raw}T00:00:00`)
+    if (Number.isNaN(d.getTime())) return null
+    return d
+  }
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return null
+  return d
+}
+
+function formatDeadline(value) {
   if (!value) return ''
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return String(value)
+  const raw = String(value)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  const d = parseDeadlineToDate(raw)
+  if (!d) return raw
   const yyyy = d.getFullYear()
   const mm = String(d.getMonth() + 1).padStart(2, '0')
   const dd = String(d.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  if (hh === '00' && mi === '00') return `${yyyy}-${mm}-${dd}`
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
 }
 
 function formatDateTime(value) {
@@ -62,6 +80,16 @@ function formatDateTime(value) {
 
 function getLocalDeviceTimestamp() {
   return new Date().toISOString()
+}
+
+function normalizeDeadlineForApi(value) {
+  if (!value) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return raw
+  return d.toISOString()
 }
 
 const EMPTY_FILTER = { title: '', moduleName: '', priority: '', deadlineFrom: '', deadlineTo: '' }
@@ -179,11 +207,17 @@ export default function TasksPage() {
       if (priority && row.priority !== priority) return false
       if (deadlineFrom) {
         if (!row.deadline) return false
-        if (new Date(row.deadline) < new Date(deadlineFrom)) return false
+        const rowD = parseDeadlineToDate(row.deadline)
+        if (!rowD) return false
+        const fromD = new Date(`${deadlineFrom}T00:00:00`)
+        if (rowD < fromD) return false
       }
       if (deadlineTo) {
         if (!row.deadline) return false
-        if (new Date(row.deadline) > new Date(`${deadlineTo}T23:59:59`)) return false
+        const rowD = parseDeadlineToDate(row.deadline)
+        if (!rowD) return false
+        const toD = new Date(`${deadlineTo}T23:59:59`)
+        if (rowD > toD) return false
       }
       return true
     })
@@ -206,7 +240,7 @@ export default function TasksPage() {
         const nowLocal = getLocalDeviceTimestamp()
         const payload = {
           title: form.title,
-          deadline: form.deadline || null,
+          deadline: normalizeDeadlineForApi(form.deadline),
           moduleName: form.moduleName || '',
           priority: toPriorityApiValue(form.priority),
           createdAt: nowLocal,
@@ -232,7 +266,7 @@ export default function TasksPage() {
         } else {
           demo.addTask({
             name: form.title,
-            deadline: form.deadline || '2026-03-20',
+            deadline: form.deadline || '2026-03-20T23:59',
             module: form.moduleName || 'it5007',
             priority: form.priority,
             status: 'todo',
@@ -454,7 +488,7 @@ export default function TasksPage() {
                   {filteredRows.map((row) => (
                     <tr key={row.id}>
                       <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{row.title}</td>
-                      <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{formatDate(row.deadline)}</td>
+                      <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{formatDeadline(row.deadline)}</td>
                       <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>{row.moduleName}</td>
                       <td style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #ddd', padding: 12 }}>
                         <span className={priorityClass(row.priority)}>{row.priority}</span>

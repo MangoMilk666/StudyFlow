@@ -6,7 +6,15 @@ from fastapi import APIRouter, Body, Depends
 
 from app.deps import get_current_user
 from app.errors import ApiError
-from app.models.user import AIConfigOut, AIConfigUpdateRequest, ConsentUpdateRequest, DeviceOut, ProfileOut, UpdateUsernameRequest
+from app.models.user import (
+    AIConfigOut,
+    AIConfigUpdateRequest,
+    ConsentUpdateRequest,
+    DeviceOut,
+    FocusTimerConfigUpdateRequest,
+    ProfileOut,
+    UpdateUsernameRequest,
+)
 from app.services.crypto import encrypt_text
 from app.services.db import MongoNotReadyError, get_db_checked
 from app.utils.mongo import oid_str, serialize_datetime, to_object_id
@@ -27,6 +35,8 @@ def _serialize_profile(doc: dict) -> dict:
         dataSharingAccepted=doc.get("dataSharingAccepted"),
         dataSharingAcceptedAt=serialize_datetime(doc.get("dataSharingAcceptedAt")),
         dataSharingVersion=doc.get("dataSharingVersion"),
+        focusTimerMode=str(doc.get("focusTimerMode") or "classic"),
+        focusCustomMinutes=int(doc.get("focusCustomMinutes") or 25),
     ).model_dump() # 转为字典表示
 
 
@@ -191,6 +201,41 @@ async def update_consent(
         updates = {"dataSharingAccepted": True, "dataSharingAcceptedAt": now, "dataSharingVersion": "v1", "updatedAt": now}
     else:
         updates = {"dataSharingAccepted": False, "dataSharingAcceptedAt": None, "dataSharingVersion": None, "updatedAt": now}
+    await db.users.update_one({"_id": to_object_id(current_user["userId"])}, {"$set": updates})
+    doc = await db.users.find_one({"_id": to_object_id(current_user["userId"])})
+    if not doc:
+        raise ApiError(404, "User not found")
+    return _serialize_profile(doc)
+
+
+@router.put("/focus-timer")
+async def update_focus_timer(
+    payload: FocusTimerConfigUpdateRequest = Body(default_factory=FocusTimerConfigUpdateRequest),
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        db = await get_db_checked()
+    except MongoNotReadyError:
+        raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
+
+    mode = str(payload.mode or "").strip().lower()
+    if mode not in {"classic", "custom"}:
+        raise ApiError(400, "invalid mode")
+
+    custom_minutes = payload.customMinutes
+    if custom_minutes is not None:
+        try:
+            custom_minutes = int(custom_minutes)
+        except Exception:
+            raise ApiError(400, "invalid customMinutes")
+        if custom_minutes < 1 or custom_minutes > 240:
+            raise ApiError(400, "customMinutes must be between 1 and 240")
+
+    now = datetime.now(timezone.utc)
+    updates = {"focusTimerMode": mode, "updatedAt": now}
+    if custom_minutes is not None:
+        updates["focusCustomMinutes"] = custom_minutes
+
     await db.users.update_one({"_id": to_object_id(current_user["userId"])}, {"$set": updates})
     doc = await db.users.find_one({"_id": to_object_id(current_user["userId"])})
     if not doc:

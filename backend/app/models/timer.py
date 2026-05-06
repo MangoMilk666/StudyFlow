@@ -22,6 +22,7 @@ class TimerStopRequest(BaseModel):
     - taskId：任务 id
     - duration：本次计时秒数（int）
     - status：可选，若不传由后端根据 duration 推断 completed/interrupted
+    - targetSeconds：可选，本次计时器的目标秒数（用于自定义模式判断 completed）
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -29,6 +30,7 @@ class TimerStopRequest(BaseModel):
     taskId: str | None = None
     duration: int | None = None
     status: str | None = None
+    targetSeconds: int | None = None
 
 
 class TimerLogOut(BaseModel):

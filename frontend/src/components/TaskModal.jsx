@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 
-function toDateInputValue(value) {
+function toDateTimeLocalInputValue(value) {
   if (!value) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return `${value}T00:00`
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return ''
   const yyyy = d.getFullYear()
   const mm = String(d.getMonth() + 1).padStart(2, '0')
   const dd = String(d.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`
 }
 
 const caretSvgUrl = `data:image/svg+xml,${encodeURIComponent(
@@ -47,7 +50,7 @@ export default function TaskModal({ open, initial, onCancel, onSubmit, t, module
     if (!open) return
     setForm({
       title: initial?.title || '',
-      deadline: toDateInputValue(initial?.deadline) || '',
+      deadline: toDateTimeLocalInputValue(initial?.deadline) || '',
       moduleName: initial?.moduleName || '',
       priority: initial?.priority || 'M',
     })
@@ -118,7 +121,7 @@ export default function TaskModal({ open, initial, onCancel, onSubmit, t, module
             <input
               value={form.deadline}
               onChange={(e) => setForm((s) => ({ ...s, deadline: e.target.value }))}
-              type="date"
+              type="datetime-local"
               style={baseFieldStyle}
             />
           </label>

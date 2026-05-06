@@ -3,10 +3,11 @@ import TopNav from '../components/TopNav'
 import { useI18n } from '../i18n'
 import { useUnifiedTasks } from '../hooks/useUnifiedTasks'
 import { useAuth } from '../auth'
-import { statsAPI, taskAPI, timerAPI } from '../services/api'
+import { statsAPI, taskAPI, timerAPI, userAPI } from '../services/api'
 
 const LS_FOCUS_TIMER_KEY = 'sf_focus_timer_v1'
 const DEFAULT_SECONDS = 25 * 60
+const DEFAULT_CUSTOM_MINUTES = 25
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60)
@@ -22,6 +23,12 @@ export default function FocusPage() {
   const bunnyVideoRef = useRef(null)
 
   const [currentTaskId, setCurrentTaskId] = useState('')
+
+  const [timerMode, setTimerMode] = useState('classic')
+  const [customMinutes, setCustomMinutes] = useState(DEFAULT_CUSTOM_MINUTES)
+  const [customMinutesDraft, setCustomMinutesDraft] = useState(String(DEFAULT_CUSTOM_MINUTES))
+
+  const [targetSeconds, setTargetSeconds] = useState(DEFAULT_SECONDS)
 
   const [timeLeft, setTimeLeft] = useState(DEFAULT_SECONDS)
   const [isRunning, setIsRunning] = useState(false)
@@ -44,12 +51,31 @@ export default function FocusPage() {
         return
       }
 
+      const savedMode = String(parsed.timerMode || '').trim().toLowerCase()
+      const safeMode = savedMode === 'custom' ? 'custom' : 'classic'
+      const savedCustomMinutes = Number(parsed.customMinutes)
+      const safeCustomMinutes =
+        Number.isFinite(savedCustomMinutes) && savedCustomMinutes > 0
+          ? Math.min(240, Math.max(1, Math.floor(savedCustomMinutes)))
+          : DEFAULT_CUSTOM_MINUTES
+
+      setTimerMode(safeMode)
+      setCustomMinutes(safeCustomMinutes)
+      setCustomMinutesDraft(String(safeCustomMinutes))
+
+      const savedTargetSeconds = Number(parsed.targetSeconds)
+      const safeTargetSeconds =
+        Number.isFinite(savedTargetSeconds) && savedTargetSeconds > 0
+          ? Math.min(240 * 60, Math.max(1 * 60, Math.floor(savedTargetSeconds)))
+          : (safeMode === 'custom' ? safeCustomMinutes * 60 : DEFAULT_SECONDS)
+      setTargetSeconds(safeTargetSeconds)
+
       const savedTimeLeft = Number(parsed.timeLeft)
       const savedRunning = !!parsed.isRunning
       const savedHasStarted = !!parsed.hasStarted
       const savedUpdatedAt = Number(parsed.updatedAtMs)
 
-      const safeTimeLeft = Number.isFinite(savedTimeLeft) ? Math.max(0, Math.floor(savedTimeLeft)) : DEFAULT_SECONDS
+      const safeTimeLeft = Number.isFinite(savedTimeLeft) ? Math.max(0, Math.floor(savedTimeLeft)) : safeTargetSeconds
       const nowMs = Date.now()
       const elapsedSec =
         savedRunning && Number.isFinite(savedUpdatedAt) ? Math.max(0, Math.floor((nowMs - savedUpdatedAt) / 1000)) : 0
@@ -71,6 +97,41 @@ export default function FocusPage() {
     }
   }, [])
 
+  const hasActiveSession = useMemo(() => {
+    if (isRunning) return true
+    return !!(hasStarted && timeLeft > 0 && timeLeft < targetSeconds)
+  }, [hasStarted, isRunning, targetSeconds, timeLeft])
+
+  useEffect(() => {
+    if (!hydrated) return
+    if (!isAuthenticated) return
+
+    userAPI
+      .getProfile()
+      .then((resp) => {
+        const p = resp?.data || {}
+        const modeRaw = String(p.focusTimerMode || '').trim().toLowerCase()
+        const nextMode = modeRaw === 'custom' ? 'custom' : 'classic'
+        const cm = Number(p.focusCustomMinutes)
+        const nextCustom = Number.isFinite(cm) && cm > 0 ? Math.min(240, Math.max(1, Math.floor(cm))) : DEFAULT_CUSTOM_MINUTES
+
+        setTimerMode(nextMode)
+        setCustomMinutes(nextCustom)
+        setCustomMinutesDraft(String(nextCustom))
+
+        if (hasActiveSession) return
+        const nextTarget = nextMode === 'custom' ? nextCustom * 60 : DEFAULT_SECONDS
+        setTargetSeconds(nextTarget)
+        setTimeLeft(nextTarget)
+        runBaseLeftRef.current = nextTarget
+        runStartMsRef.current = null
+        stopOnceRef.current = false
+        setHasStarted(false)
+        setIsRunning(false)
+      })
+      .catch(() => {})
+  }, [hasActiveSession, hydrated, isAuthenticated])
+
   const currentTask = useMemo(() => tasks.find((t) => t.id === currentTaskId), [tasks, currentTaskId])
   const selectableTasks = useMemo(() => tasks.filter((x) => x.status === 'todo' || x.status === 'in_progress'), [tasks])
 
@@ -84,11 +145,11 @@ export default function FocusPage() {
     setCurrentTaskId('')
     setIsRunning(false)
     setHasStarted(false)
-    setTimeLeft(DEFAULT_SECONDS)
+    setTimeLeft(targetSeconds)
     stopOnceRef.current = false
     runStartMsRef.current = null
-    runBaseLeftRef.current = DEFAULT_SECONDS
-  }, [currentTaskId, hydrated, loading, selectableTasks])
+    runBaseLeftRef.current = targetSeconds
+  }, [currentTaskId, hydrated, loading, selectableTasks, targetSeconds])
 
   useEffect(() => {
     if (!isRunning) return
@@ -134,13 +195,16 @@ export default function FocusPage() {
           timeLeft,
           isRunning,
           hasStarted,
+          targetSeconds,
+          timerMode,
+          customMinutes,
           updatedAtMs: Date.now(),
         })
       )
     } catch {
       // ignore
     }
-  }, [currentTaskId, hydrated, timeLeft, isRunning, hasStarted])
+  }, [currentTaskId, hydrated, timeLeft, isRunning, hasStarted, targetSeconds, timerMode, customMinutes])
 
   useEffect(() => {
     if (!isRunning) return
@@ -154,14 +218,14 @@ export default function FocusPage() {
     if (!isAuthenticated) return
 
     timerAPI
-      .stopTimer(taskId, DEFAULT_SECONDS, 'completed')
+      .stopTimer(taskId, targetSeconds, 'completed', targetSeconds)
       .then(() => statsAPI.getTaskStats(taskId))
       .then((resp) => {
         const minutes = Number(resp?.data?.totalMinutes || 0)
         setResultText(`${t('focus.congrats')} ${t('focus.totalFocused', minutes)}`)
       })
       .catch(() => {})
-  }, [currentTaskId, isAuthenticated, isRunning, timeLeft, t])
+  }, [currentTaskId, isAuthenticated, isRunning, timeLeft, t, targetSeconds])
 
   const primaryLabel = useMemo(() => {
     if (isRunning) return t('focus.pause')
@@ -195,10 +259,10 @@ export default function FocusPage() {
       effectiveLeft = nextLeft
     }
 
-    const spent = Math.max(0, DEFAULT_SECONDS - Math.max(0, effectiveLeft))
+    const spent = Math.max(0, targetSeconds - Math.max(0, effectiveLeft))
     if (spent > 0) {
       try {
-        await timerAPI.stopTimer(currentTaskId, spent, 'interrupted')
+        await timerAPI.stopTimer(currentTaskId, spent, 'interrupted', targetSeconds)
         const resp = await statsAPI.getTaskStats(currentTaskId)
         const minutes = Number(resp?.data?.totalMinutes || 0)
         setResultText(t('focus.totalFocused', minutes))
@@ -208,8 +272,41 @@ export default function FocusPage() {
     }
 
     setHasStarted(false)
-    setTimeLeft(DEFAULT_SECONDS)
+    setTimeLeft(targetSeconds)
     stopOnceRef.current = false
+  }
+
+  const applyCustomMinutes = async () => {
+    setNotice(null)
+    if (hasActiveSession) {
+      setNotice({ type: 'error', text: t('focus.stopBeforeAdjust') })
+      return
+    }
+    const next = Number(customMinutesDraft)
+    if (!Number.isFinite(next) || next <= 0) {
+      setNotice({ type: 'error', text: t('focus.invalidMinutes') })
+      return
+    }
+    const minutes = Math.min(240, Math.max(1, Math.floor(next)))
+    setCustomMinutes(minutes)
+    setCustomMinutesDraft(String(minutes))
+    setTimerMode('custom')
+
+    const nextTarget = minutes * 60
+    setTargetSeconds(nextTarget)
+    setTimeLeft(nextTarget)
+    setHasStarted(false)
+    setIsRunning(false)
+    runStartMsRef.current = null
+    runBaseLeftRef.current = nextTarget
+    stopOnceRef.current = false
+
+    if (!isAuthenticated) return
+    try {
+      await userAPI.updateFocusTimer({ mode: 'custom', customMinutes: minutes })
+    } catch {
+      // ignore
+    }
   }
 
   return (
@@ -278,8 +375,8 @@ export default function FocusPage() {
                     }
 
                     setHasStarted(true)
-                    if (timeLeft <= 0) setTimeLeft(DEFAULT_SECONDS)
-                    runBaseLeftRef.current = timeLeft <= 0 ? DEFAULT_SECONDS : timeLeft
+                    if (timeLeft <= 0) setTimeLeft(targetSeconds)
+                    runBaseLeftRef.current = timeLeft <= 0 ? targetSeconds : timeLeft
                     runStartMsRef.current = Date.now()
                     setIsRunning(true)
                   }}
@@ -288,6 +385,35 @@ export default function FocusPage() {
                   {primaryLabel}
                 </button>
               </div>
+
+              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85, textAlign: 'center', fontWeight: 'bold' }}>
+                {timerMode === 'custom' ? t('focus.modeCustom', Math.floor(targetSeconds / 60)) : t('focus.modeClassic')}
+              </div>
+
+              {timerMode === 'custom' ? (
+                <div style={{ marginTop: 10, display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 12, opacity: 0.9, fontWeight: 'bold' }}>{t('focus.customMinutes')}</div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={240}
+                    step={1}
+                    value={customMinutesDraft}
+                    onChange={(e) => setCustomMinutesDraft(e.target.value)}
+                    style={{ padding: '8px 10px', borderRadius: 10, border: `2px solid var(--ink)`, fontWeight: 'bold', width: 120 }}
+                    disabled={!hydrated || hasActiveSession}
+                  />
+                  <button
+                    className="btn"
+                    type="button"
+                    style={{ background: 'white', padding: '8px 14px' }}
+                    onClick={applyCustomMinutes}
+                    disabled={!hydrated || hasActiveSession}
+                  >
+                    {t('focus.apply')}
+                  </button>
+                </div>
+              ) : null}
 
               <div style={{ marginTop: 26, fontSize: 12, opacity: 0.8, textAlign: 'center' }}>
                 {!isAuthenticated ? t('common.loginMore') : ''}
@@ -341,7 +467,6 @@ export default function FocusPage() {
                   <select
                     value={currentTaskId}
                     onChange={(e) => {
-                      const hasActiveSession = isRunning || (hasStarted && timeLeft > 0 && timeLeft < DEFAULT_SECONDS)
                       if (hasActiveSession) {
                         setNotice({ type: 'error', text: t('focus.stopBeforeDone') })
                         return
@@ -349,11 +474,11 @@ export default function FocusPage() {
                       const next = e.target.value
                       setCurrentTaskId(next)
                       setIsRunning(false)
-                      setTimeLeft(DEFAULT_SECONDS)
+                      setTimeLeft(targetSeconds)
                       setHasStarted(false)
                       stopOnceRef.current = false
                       runStartMsRef.current = null
-                      runBaseLeftRef.current = DEFAULT_SECONDS
+                      runBaseLeftRef.current = targetSeconds
                     }}
                     style={{
                       padding: '10px 12px',
@@ -384,7 +509,6 @@ export default function FocusPage() {
                         setNotice({ type: 'error', text: t('auth.loginRequired') })
                         return
                       }
-                      const hasActiveSession = isRunning || (hasStarted && timeLeft > 0 && timeLeft < DEFAULT_SECONDS)
                       if (hasActiveSession) {
                         setNotice({ type: 'error', text: t('focus.stopBeforeDone') })
                         return
