@@ -23,7 +23,7 @@ async def get_current_user(authorization: str | None = Header(default=None)) -> 
 
     兼容 Express 版行为：
     - 缺失或无效 token：返回 401 {"error": "Unauthorized"}
-    - 成功：返回 payload 中的 userId/email
+    - 成功：返回 payload 中的 userId，email和sessionId信息
     """
 
     # 只接受 Bearer token：保持与前端 axios interceptor 的约定一致

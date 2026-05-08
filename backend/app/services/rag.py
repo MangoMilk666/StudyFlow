@@ -18,7 +18,8 @@ from app.utils.mongo import oid_str
 
 
 async def build_user_documents(user_id: str) -> list[dict[str, Any]]:
-    """从 MongoDB 构造用户的 RAG 文档。
+    """从 MongoDB 构造用户的 RAG 文档。将碎片化的结构化数据（JSON 记录），
+    变成向量数据库（ChromaDB）能够理解并检索的非结构化文档
 
     当前做法：
     - tasks/modules 各生成一条或多条文本
@@ -38,6 +39,7 @@ async def build_user_documents(user_id: str) -> list[dict[str, Any]]:
         # 若转换失败，则按字符串兜底（用于兼容历史数据/测试数据）
         user_oid = user_id
 
+    # 找到该用户所有的任务和模块数据
     tasks = await db.tasks.find({"userId": user_oid}).to_list(length=None)
     modules = await db.modules.find({"userId": user_oid}).to_list(length=None)
 
@@ -55,6 +57,7 @@ async def build_user_documents(user_id: str) -> list[dict[str, Any]]:
         docs.append(
             {
                 # 对任务：把常用字段拼成一段可读文本，方便语义检索命中
+                # 语义化拼接 + id去重
                 "id": f"task:{oid_str(t.get('_id'))}",
                 "text": "\n".join(
                     [
@@ -65,6 +68,8 @@ async def build_user_documents(user_id: str) -> list[dict[str, Any]]:
                         f"Description: {t.get('description','')}",
                     ]
                 ),
+                # 元数据：给数据库进行分类、过滤（精确匹配）
+                # 存储ID、状态、优先级、分类标签、创建时间等
                 "metadata": {
                     "type": "task",
                     "taskId": oid_str(t.get("_id")),
@@ -78,8 +83,12 @@ async def build_user_documents(user_id: str) -> list[dict[str, Any]]:
 
 
 def _create_embeddings(settings):
+    '''
+    初始化文本向量化模型
+    '''
     from langchain_openai import OpenAIEmbeddings
 
+    # 支持本地Ollama
     emb_kwargs: dict[str, Any] = {
         "api_key": settings.OPENAI_API_KEY or "ollama",
         "timeout": 30,
@@ -87,11 +96,14 @@ def _create_embeddings(settings):
     }
     if getattr(settings, "OPENAI_BASE_URL", None):
         emb_kwargs["base_url"] = settings.OPENAI_BASE_URL
+    # 用户自行指定
     if getattr(settings, "OPENAI_EMBED_MODEL", None):
         emb_kwargs["model"] = settings.OPENAI_EMBED_MODEL
+    # 如果配置没指定，用了OpenAI 官方服务（有 Key 但没填 Base URL），默认使用目前性价比最高的 text-embedding-3-small
     elif settings.OPENAI_API_KEY and not getattr(settings, "OPENAI_BASE_URL", None):
         emb_kwargs["model"] = "text-embedding-3-small"
 
+    # langchain-openai 版本兼容问题，降级尝试
     try:
         return OpenAIEmbeddings(**emb_kwargs)
     except TypeError:

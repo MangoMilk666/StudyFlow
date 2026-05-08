@@ -59,6 +59,7 @@ jobs:
             OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
             OPENAI_MODEL=${{ vars.OPENAI_MODEL || 'gpt-4.1-mini' }}
             OPENAI_BASE_URL=${{ vars.OPENAI_BASE_URL }}
+            OPENAI_EMBED_MODEL=${{ vars.OPENAI_EMBED_MODEL }}
             
             CHROMA_PERSIST_DIR=${{ vars.CHROMA_PERSIST_DIR || '/data/chroma' }}
             

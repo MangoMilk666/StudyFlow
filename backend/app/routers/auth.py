@@ -32,7 +32,7 @@ async def _create_session(
     now: datetime,
 ) -> str:
     '''
-    依照多层级匹配，获取用户session记录的id
+    依照多层级匹配，更新并返回用户session记录的id（字符串形式）
     '''
     user_agent = request.headers.get("user-agent")
     ip = request.client.host if request.client else None
@@ -99,7 +99,7 @@ async def _create_session(
 
 @router.post("/register", status_code=201)
 async def register(request: Request, payload: RegisterRequest = Body(default_factory=RegisterRequest)):
-    """注册。
+    """注册。未注册用户注册后自动登录
 
     与旧 Express 保持兼容：
     - 缺字段：400 {"error": "username/email/password required"}
@@ -171,13 +171,14 @@ async def login(request: Request, payload: LoginRequest = Body(default_factory=L
         raise ApiError(500, "MongoDB 连接失败，请检查 MONGO_URI 或确认数据库已启动")
     user = await db.users.find_one({"email": email})
     if not user:
-        raise ApiError(401, "Invalid credentials")
+        raise ApiError(401, "User not found")
 
     if not verify_password(password, str(user.get("password") or "")):
         raise ApiError(401, "Invalid credentials")
 
     now = datetime.now(timezone.utc)
     user_id = oid_str(user.get("_id"))
+    # 插入新的session记录
     session_id = await _create_session(
         db,
         user_oid=to_object_id(user_id),

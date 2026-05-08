@@ -78,7 +78,7 @@ def _map_llm_error(e: Exception) -> ApiError | None:
 
 
 def _history_to_messages(history: list[dict[str, Any]] | None):
-    """把前端传入的 history（role/content 列表）封装为 LangChain messages。
+    """把前端传入的 history（多轮对话的 role/content 列表）封装为 LangChain messages。
 
     - role=assistant|ai -> AIMessage
     - role=user|human -> HumanMessage
@@ -106,7 +106,7 @@ def _history_to_messages(history: list[dict[str, Any]] | None):
 
 def _coerce_client_datetime(value: str | None, *, fallback: datetime) -> datetime:
     '''
-    将前端传来的各种时间字符串强制转化为标准化的 UTC datetime 对象”
+    将前端传来的各种时间字符串强制转化为标准化的 UTC datetime 对象
     :param value:
     :param fallback: 保底值
     :return: 标准化的 UTC datetime 对象
@@ -539,11 +539,17 @@ async def _sync_canvas_assignments(
 
 @router.get("/health")
 async def ai_health(current_user: dict = Depends(get_current_user)):
+    '''
+    返回体现ai配置可用程度的诊断字典
+    llmConfigured: AI 基本配置是否就绪。
+    rag.enabled: RAG 系统是否已经加载。
+    queryOk: 真实的检索操作是否成功（区分了“系统已启动”但“查询失败”的两种状态）。
+    sample: 如果查询成功，返回部分数据预览，查看向量库里的内容是否符合预期。
+    '''
     settings = get_settings()
     user_id = current_user["userId"]
 
     llm_configured = bool(settings.OPENAI_API_KEY or getattr(settings, "OPENAI_BASE_URL", None))
-    # 返回体现ai功能健康状态的字典
     out: dict[str, Any] = {
         "llmConfigured": llm_configured,
         "openaiBaseUrl": getattr(settings, "OPENAI_BASE_URL", None),
@@ -556,6 +562,7 @@ async def ai_health(current_user: dict = Depends(get_current_user)):
         return out
 
     try:
+        # 尝试从 ChromaDB 或其他向量库中加载该用户的专属检索器
         retriever = await get_user_retriever(user_id)
     except Exception as e:
         out["rag"] = {"enabled": False, "error": str(e)}
@@ -566,11 +573,13 @@ async def ai_health(current_user: dict = Depends(get_current_user)):
         return out
 
     try:
+        # 发送一个测试查询词 "studyflow"
         if hasattr(retriever, "aget_relevant_documents"):
             docs = await retriever.aget_relevant_documents("studyflow")
         else:
             docs = retriever.get_relevant_documents("studyflow")
         previews = []
+        # 抓取返回的 Document 对象的前 160 个字符作为样本 (Sample)
         for d in docs or []:
             previews.append(str(getattr(d, "page_content", None) or str(d))[:160])
         out["rag"] = {"enabled": True, "queryOk": True, "sampleCount": len(docs or []), "sample": previews[:3]}
@@ -579,7 +588,11 @@ async def ai_health(current_user: dict = Depends(get_current_user)):
         out["rag"] = {"enabled": True, "queryOk": False, "error": str(e)}
         return out
 
-
+# Body 用于显式地告诉 FastAPI：此参数应该从请求体（Request Body）中获取，
+# 而不是从查询参数（Query Parameters）或路径参数（Path Parameters）中获取
+# default_factory=dict 的作用是：当客户端没有发送请求体时，FastAPI 会在每
+# 次请求时调用 dict() 函数来创建一个新的空字典对象作为默认值，从而避免了共享状
+# 态带来的副作用。
 @router.post("/chat")
 async def chat(
     payload: dict = Body(default_factory=dict),
@@ -591,7 +604,7 @@ async def chat(
     - 使用 LangGraph 的 ReAct agent（工具调用 + 生成回复）
     - tools:
       - get_task_stats：读取用户任务统计
-      - sync_canvas_assignments：预留接口（当前返回模拟结果）
+      - sync_canvas_assignments：拉取用户Canvas课程作业信息，必要时创建为任务数据
       - search_user_context：RAG 检索用户 tasks/modules（需要 OPENAI_API_KEY 才启用）
     - 输入：{ message, history? }
     - 输出：{ reply }
@@ -601,6 +614,7 @@ async def chat(
     settings = get_settings()
     message = str((payload or {}).get("message") or "").strip()
     history = (payload or {}).get("history")
+    # 参照用户本地的时间，而不是服务器的 UTC 时间
     client_now_raw = (payload or {}).get("clientNow")
     if not message:
         raise ApiError(400, "message required")
@@ -615,7 +629,7 @@ async def chat(
         raise ApiError(503, "LLM not configured")
 
     try:
-        # 这些依赖是"可选能力"：没装 langchain 相关包时不影响其它业务 API
+        # 以下依赖是"可选能力"：没装 langchain 相关包时不影响其它业务 API
         from langchain_core.tools import tool
         from langchain_openai import ChatOpenAI
         from langgraph.prebuilt import create_react_agent
@@ -627,9 +641,9 @@ async def chat(
 
     @tool
     async def get_task_stats() -> str:
-        """工具：获取当前用户任务统计（JSON 字符串）。
+        """工具函数：获取当前用户任务统计（JSON 字符串）。
 
-        工具的返回值统一用字符串，便于 Agent 将其纳入对话上下文。
+            工具的返回值统一用字符串，便于 Agent 将其纳入对话上下文。
         """
 
         # 工具返回统一用字符串：避免 Agent 在不同工具之间处理"结构化对象"的兼容问题
@@ -640,7 +654,7 @@ async def chat(
         course_filter: list[str] | None = None,
         import_to_tasks: bool = False,
     ) -> str:
-        """工具：拉取当前用户的 Canvas 课程作业列表，可选写入 tasks。
+        """工具函数：拉取当前用户的 Canvas 课程作业列表，可选写入 tasks。
 
         参数：
         - course_filter: 要筛选的课程名称/代码/ID 关键词列表。传空列表 [] 表示拉取所有课程。
@@ -695,19 +709,23 @@ async def chat(
             - 返回拼接后的文本片段，供 Agent 参考
             """
 
-            # 兼容不同 retriever 实现：有的提供 async API，有的只有 sync API
+            # 兼容不同 retriever 实现：有的提供 异步调用 API，有的只有 同步调用 API
             try:
                 if hasattr(retriever, "aget_relevant_documents"):
                     docs = await retriever.aget_relevant_documents(query)
                 else:
                     docs = retriever.get_relevant_documents(query)
+            # 未能在知识库里检索到相关内容，Agent 收到空串后，会自动转而使用它本身的预训练知识回答
             except Exception:
                 return ""
 
             parts = []
+            # 内容提取与清洗
             for d in docs or []:
                 content = getattr(d, "page_content", None) or str(d)
                 parts.append(content)
+            # top-k: 限制只取最相关的 6 条结果,换行符语义分割
+            # 防止上下文长度超标
             return "\n\n".join(parts[:6])
 
         tools.append(search_user_context)
@@ -722,8 +740,14 @@ async def chat(
     if getattr(settings, "OPENAI_BASE_URL", None):
         # 允许切到本地/国内兼容平台（例如 Ollama 的 /v1）
         llm_kwargs["base_url"] = settings.OPENAI_BASE_URL
+        # 强制指定流式输出
+        llm_kwargs["streaming"] = True
 
     def _create_chat_llm(kwargs: dict[str, Any]):
+        '''
+        LLM初始化，连接 OpenAI 官方、本地 Ollama 和其他兼容 OpenAI API 的平台
+        工厂+适配器模式
+        '''
         try:
             return ChatOpenAI(**kwargs)
         except TypeError:
@@ -743,6 +767,7 @@ async def chat(
     graph = create_react_agent(
         llm,
         tools,
+        # 提示词设置
         prompt="""You are StudyFlow AI assistant. Use tools when helpful.
 
 ## Canvas assignment rules
@@ -763,7 +788,7 @@ When displaying assignments, always reply in this exact format (use the user's l
   作业名，deadline YYYY-MM-DD
   ...
 
-If deadline is null, write "deadline 未设置".
+If deadline is null, write "deadline 未设置" or "deadline unset".
 When import_to_tasks=True succeeded, append: "已将上述作业导入 tasks（新增 X 条，更新 Y 条）。"
 
 ## General rules

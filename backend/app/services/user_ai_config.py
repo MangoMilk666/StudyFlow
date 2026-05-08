@@ -6,6 +6,9 @@ from app.utils.mongo import to_object_id
 
 
 async def get_user_ai_config(user_id: str) -> dict:
+    '''
+    获取用户的ai配置信息
+    '''
     db = await get_db_checked()
     doc = await db.user_ai_configs.find_one({"userId": to_object_id(user_id)})
     if not doc:

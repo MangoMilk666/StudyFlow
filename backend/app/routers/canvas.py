@@ -35,6 +35,10 @@ router = APIRouter()
 
 
 def _pick_courses(all_courses: list[dict], course_ids) -> list[dict]:
+    '''
+    获取符合条件的课程数据
+    :return: 过滤后的课程列表
+    '''
     ids = [str(x) for x in (course_ids or [])] if isinstance(course_ids, list) else []
     if not ids:
         # 不传 courseIds 时默认全量同步/预览，保持前端交互简单
@@ -48,7 +52,7 @@ def _canvas_http_error(e: httpx.HTTPStatusError) -> ApiError:
     - 之前统一返回 502 + status_code，会让用户难以定位是 token 失效、权限不足还是限流。
     - 这里按常见状态码做分流，并附带少量响应片段（不包含敏感 token）。
     """
-
+    # 状态码
     status = int(getattr(e.response, "status_code", 0) or 0)
     try:
         body = (e.response.text or "").strip()
@@ -71,7 +75,10 @@ def _canvas_http_error(e: httpx.HTTPStatusError) -> ApiError:
 
 @router.get("/courses")
 async def get_courses(current_user: dict = Depends(get_current_user)):
-    """获取 Canvas 课程列表（需要 Bearer JWT + 配置 CANVAS_*）。"""
+    """获取 Canvas 课程列表（需要 Bearer JWT + 配置 CANVAS_*）。
+    当前所有用户配置相同
+    TODO: 分用户配置，用户可自行上传/管理Canvas token
+    """
 
     try:
         async with httpx.AsyncClient(
@@ -187,6 +194,7 @@ async def sync_assignments(
                     course_id = str(course.get("id") or "")
                     title = str(a.get("name") or "").strip()
                     if not assignment_id or not course_id or not title:
+                        # 关键字段缺失的作业直接跳过：避免把“空标题/空 id”写进前端列表
                         skipped.append({"courseId": course_id, "assignmentId": assignment_id})
                         continue
 

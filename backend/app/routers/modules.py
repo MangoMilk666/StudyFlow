@@ -24,6 +24,9 @@ router = APIRouter()
 
 
 def _serialize_module(doc: dict) -> dict:
+    '''
+    :return: 返回ModuleOut模型的字典化形式
+    '''
     return ModuleOut(
         _id=oid_str(doc.get("_id")),
         userId=oid_str(doc.get("userId")),
@@ -100,18 +103,19 @@ async def update_module(
         raise ApiError(404, "Module not found")
     if oid_str(existing.get("userId")) != current_user["userId"]:
         raise ApiError(403, "Forbidden")
-
+    # 保留值为None的字段
     updates: dict = payload.model_dump(exclude_none=True)
 
     updates["updatedAt"] = datetime.now(timezone.utc)
     await db.modules.update_one({"_id": to_object_id(id)}, {"$set": updates})
     updated = await db.modules.find_one({"_id": to_object_id(id)})
+    # 相同key，后来会覆盖原先的
     return _serialize_module(updated or {**existing, **updates})
 
 
 @router.delete("/{id}")
 async def delete_module(id: str, current_user: dict = Depends(get_current_user)):
-    """删除 module。"""
+    """删除 module"""
 
     try:
         db = await get_db_checked()

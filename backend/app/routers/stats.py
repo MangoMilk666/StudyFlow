@@ -5,7 +5,7 @@ from __future__ import annotations
 提供两类统计：
 - /summary：统计页需要的四象限数据（完成/未完成、按模块耗时、Top 耗时任务、趋势）
   - 另外增加“番茄钟维度”的汇总：focusMinutes / pomodorosCompleted
-- /task/{taskId}：某个任务的专注统计（累计所有 timerlogs；完成次数仅统计 completed）
+- /task/{taskId}：某个任务的专注统计（累计所有 timerlogs；完成次数仅统计 completed - 待修改）
 
 实现要点：
 - 使用 MongoDB aggregate 做分组统计（尽量减少 Python 端计算与 IO）
@@ -26,6 +26,9 @@ router = APIRouter()
 
 
 def _range_days(value: str) -> int:
+    '''
+    :return: 区间天数
+    '''
     v = (value or "").strip().lower()
     if v == "day":
         return 1
@@ -44,12 +47,18 @@ def _to_float(value) -> float:
         return 0.0
 
 def _round_minutes(value) -> float:
+    '''
+    :return: 四舍五入后的分钟数
+    '''
     try:
         return float(round(float(value), 2))
     except Exception:
         return 0.0
 
 def _round_minutes_int_from_seconds(seconds: int) -> int:
+    '''
+    :return: 秒数转化成整数的分钟数
+    '''
     try:
         return int(round(float(seconds) / 60.0))
     except Exception:
@@ -57,7 +66,12 @@ def _round_minutes_int_from_seconds(seconds: int) -> int:
 
 
 def _tz_offset_str(dt: datetime) -> str:
+    '''
+    将 Python 的时间偏移量对象（timedelta）手动格式化为标准的 ISO 8601 时区字符串
+    （例如 +08:00 或 -05:00）
+    '''
     offset = dt.utcoffset() or timedelta(0)
+    # 将偏移量转换为总秒数
     total = int(offset.total_seconds())
     sign = "+" if total >= 0 else "-"
     total = abs(total)
@@ -95,6 +109,7 @@ async def get_stats_summary(
     # 番茄钟维度：
     # - focusMinutes 统计所有 timerlogs 的累计时长（包含中断）
     # - pomodorosCompleted 只统计 completed（自然完成的 25min）
+    # TODO: pomodorosCompleted 这个逻辑待修改
     focus_agg = await db.timerlogs.aggregate(
         [
             {"$match": {"userId": user_oid}},
@@ -112,9 +127,9 @@ async def get_stats_summary(
             {
                 "$group": {
                     "_id": None,
-                    "seconds": {"$sum": "$durationSafe"},
+                    "seconds": {"$sum": "$durationSafe"}, # 专注总时长
                     "pomodorosCompleted": {
-                        "$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}
+                        "$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]} # 完整番茄钟完成个数
                     },
                 }
             },
@@ -123,6 +138,7 @@ async def get_stats_summary(
     focus_seconds = int((focus_agg[0] if focus_agg else {}).get("seconds") or 0)
     pomodoros_completed = int((focus_agg[0] if focus_agg else {}).get("pomodorosCompleted") or 0)
 
+    # 模块维度
     try:
         module_agg = await db.tasks.aggregate(
             [

@@ -50,6 +50,9 @@ def _get_auth_headers() -> dict[str, str]:
 
 
 def canvas_base_url() -> str:
+    '''
+    返回正确的canvas base URL
+    '''
     settings = get_settings()
     base_url = _normalize_base_url(settings.CANVAS_BASE_URL)
     if not base_url:

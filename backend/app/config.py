@@ -147,7 +147,7 @@ _settings: Settings | None = None
 
 def get_settings() -> Settings:
     """获取全局 Settings 单例。
-
+    如果全局变量非空，直接返回已经创建好的实例，而不会再次执行实例化逻辑
     FastAPI 运行期会频繁读取配置，做缓存可以减少开销。
     """
 
